@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Generated artifacts (regenerable from the scripts)
+result.json
+network_report.json
+network_report.txt
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Warm Intro Finder</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1b2230;
+      --panel-2: #222b3a;
+      --border: #2e3a50;
+      --text: #e6ecf2;
+      --muted: #8a98a9;
+      --accent: #4dabf7;
+      --accent-2: #63e6be;
+      --error: #ff6b6b;
+      --target: #ffa94d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 1.2rem 2rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    header h1 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+    header .meta { color: var(--muted); font-size: 0.85rem; }
+    main { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    h2 { margin-top: 0; font-size: 1rem; color: var(--muted); font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
+    label { display: block; margin-bottom: 0.3rem; font-size: 0.9rem; color: var(--muted); }
+    select, input[type=text], input[type=number] {
+      width: 100%;
+      padding: 0.55rem 0.7rem;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+    select[multiple] { height: 180px; }
+    select:focus, input:focus { outline: none; border-color: var(--accent); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+    .field { margin-bottom: 1rem; }
+    .hint { color: var(--muted); font-size: 0.8rem; margin-top: 0.3rem; }
+    button {
+      background: var(--accent);
+      color: #08121f;
+      border: 0;
+      padding: 0.65rem 1.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover { background: #74c0fc; }
+    .checkbox-row { display: flex; align-items: center; gap: 0.5rem; }
+    .checkbox-row input { width: auto; margin: 0; }
+    .checkbox-row label { margin: 0; color: var(--text); }
+
+    .error {
+      background: rgba(255, 107, 107, 0.1);
+      border: 1px solid var(--error);
+      color: var(--error);
+      padding: 0.8rem 1rem;
+      border-radius: 5px;
+      margin-bottom: 1rem;
+    }
+
+    .summary { color: var(--muted); margin-bottom: 0.6rem; }
+    .summary strong { color: var(--text); }
+    .explanation {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin-top: 0.6rem;
+      line-height: 1.5;
+    }
+
+    .chain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem; margin: 0.8rem 0 0.4rem; }
+    .node {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.6rem 0.85rem;
+      min-width: 160px;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .node.entry { border-color: var(--accent); border-width: 2px; }
+    .node.target { border-color: var(--target); border-width: 2px; }
+    .node .name { font-weight: 600; }
+    .node .id { color: var(--muted); font-size: 0.75rem; font-family: ui-monospace, Menlo, monospace; }
+    .node .meta {
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin-top: 0.3rem;
+      line-height: 1.3;
+    }
+    .arrow {
+      align-self: center;
+      color: var(--muted);
+      font-size: 1.2rem;
+      padding: 0 0.1rem;
+      user-select: none;
+    }
+    .path-header { display: flex; align-items: baseline; gap: 0.6rem; }
+    .path-header .tag {
+      background: var(--accent-2);
+      color: #08121f;
+      padding: 0.1rem 0.5rem;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+    .path-header .tag.alt { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
+    .path-block { padding-bottom: 1rem; border-bottom: 1px dashed var(--border); margin-bottom: 1rem; }
+    .path-block:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+
+    .unreachable {
+      background: rgba(255, 169, 77, 0.1);
+      border: 1px solid var(--target);
+      color: var(--target);
+      padding: 1rem;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Warm Intro Finder</h1>
+    <div class="meta">{{ dataset.count }} people · {{ dataset.people }} / {{ dataset.edges }}</div>
+  </header>
+
+  <main>
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/search" class="card">
+      <h2>Query</h2>
+
+      <div class="row">
+        <div class="field">
+          <label for="entries">Entry points (hold Ctrl/Cmd to pick multiple)</label>
+          <select id="entries" name="entries" multiple>
+            {% for p in people %}
+              <option value="{{ p.id }}" {% if p.id in form.get('entries', []) %}selected{% endif %}>{{ p.label }}</option>
+            {% endfor %}
+          </select>
+          <div class="hint">People you already have access to.</div>
+        </div>
+
+        <div class="field">
+          <label for="target">Target</label>
+          <select id="target" name="target">
+            <option value="">— pick a person —</option>
+            {% for p in people %}
+              <option value="{{ p.id }}" {% if form.get('target') == p.id %}selected{% endif %}>{{ p.label }}</option>
+            {% endfor %}
+          </select>
+          <div class="hint">Person you want to reach.</div>
+
+          <label for="entries_free" style="margin-top: 1rem;">Or type entry names/ids (comma-separated)</label>
+          <input type="text" id="entries_free" name="entries_free" value="{{ form.get('entries_free', '') }}" placeholder="e.g. p001, Vera Okafor">
+        </div>
+      </div>
+
+      <div class="row-3">
+        <div class="field">
+          <label for="top_k">Top-k paths</label>
+          <input type="number" id="top_k" name="top_k" min="1" max="20" value="{{ form.get('top_k', 3) }}">
+        </div>
+        <div class="field" style="display: flex; align-items: flex-end;">
+          <div class="checkbox-row">
+            <input type="checkbox" id="explain" name="explain" {% if form.get('explain') %}checked{% endif %}>
+            <label for="explain">Show company / team / role</label>
+          </div>
+        </div>
+        <div class="field" style="display: flex; align-items: flex-end; justify-content: flex-end;">
+          <button type="submit">Find warm path</button>
+        </div>
+      </div>
+    </form>
+
+    {% if result %}
+      <div class="card">
+        <h2>Result</h2>
+        {% if not result.reachable %}
+          <div class="unreachable">{{ result.explanation }}</div>
+        {% else %}
+          <div class="summary">
+            Shortest path: <strong>{{ result.hops }} hop{{ '' if result.hops == 1 else 's' }}</strong>
+            · via <strong>{{ result.entry_used.name }}</strong>
+            {% if result.alternatives %}· {{ result.alternatives|length }} alternative{{ '' if result.alternatives|length == 1 else 's' }}{% endif %}
+          </div>
+
+          <div class="path-block">
+            <div class="path-header">
+              <span class="tag">BEST</span>
+              <span class="summary" style="margin: 0;">{{ result.best|length - 1 }} hop{{ '' if result.best|length - 1 == 1 else 's' }}</span>
+            </div>
+            <div class="chain">
+              {% for n in result.best %}
+                <div class="node {% if loop.first %}entry{% endif %}{% if loop.last %} target{% endif %}">
+                  <div class="name">{{ n.name }}</div>
+                  <div class="id">{{ n.id }}</div>
+                  {% if result.explain and (n.company or n.role) %}
+                    <div class="meta">
+                      {% if n.company %}{{ n.company }}{% endif %}
+                      {% if n.team %} · {{ n.team }}{% endif %}
+                      {% if n.role %}<br>{{ n.role }}{% endif %}
+                    </div>
+                  {% endif %}
+                </div>
+                {% if not loop.last %}<div class="arrow">→</div>{% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          {% for alt in result.alternatives %}
+            <div class="path-block">
+              <div class="path-header">
+                <span class="tag alt">ALT {{ loop.index }}</span>
+              </div>
+              <div class="chain">
+                {% for n in alt %}
+                  <div class="node {% if loop.first %}entry{% endif %}{% if loop.last %} target{% endif %}">
+                    <div class="name">{{ n.name }}</div>
+                    <div class="id">{{ n.id }}</div>
+                    {% if result.explain and (n.company or n.role) %}
+                      <div class="meta">
+                        {% if n.company %}{{ n.company }}{% endif %}
+                        {% if n.team %} · {{ n.team }}{% endif %}
+                        {% if n.role %}<br>{{ n.role }}{% endif %}
+                      </div>
+                    {% endif %}
+                  </div>
+                  {% if not loop.last %}<div class="arrow">→</div>{% endif %}
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+
+          <div class="explanation">{{ result.explanation }}</div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </main>
+</body>
+</html>
