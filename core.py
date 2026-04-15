@@ -389,6 +389,14 @@ class CSVRepository:
                     f"{self.identities_path}: expected columns "
                     f"{sorted(required)}"
                 )
+            # Any column that isn't one of the required three is
+            # preserved on SocialAccount.attributes so downstream
+            # consumers (UI, analytics) can surface platform-specific
+            # metadata like "dm: yes/no" or "verified: true" without
+            # the loader needing to know about each field.
+            extra_cols = [
+                c for c in reader.fieldnames if c not in required
+            ]
             for row in reader:
                 pid = (row["person_id"] or "").strip()
                 platform = (row["platform"] or "").strip().lower()
@@ -405,11 +413,15 @@ class CSVRepository:
                     # person overlap and propose a merge. We do NOT
                     # silently overwrite the first claim's owner here.
                     continue
+                attrs = {
+                    c: (row.get(c) or "").strip() for c in extra_cols
+                }
                 account = SocialAccount(
                     id=acc_id,
                     platform=platform,
                     handle=handle,
                     owner_person_id=pid,
+                    attributes=attrs,
                 )
                 accounts[acc_id] = account
                 by_id[pid].accounts.append(account)

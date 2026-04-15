@@ -15,9 +15,63 @@ from warm_intro import build_graph, find_warm_intro
 
 PEOPLE = os.environ.get("WARM_INTRO_PEOPLE", "people.csv")
 EDGES = os.environ.get("WARM_INTRO_EDGES", "edges.csv")
+IDENTITIES = os.environ.get("WARM_INTRO_IDENTITIES")  # optional
 
 app = Flask(__name__)
-graph = build_graph(PEOPLE, EDGES)
+graph = build_graph(PEOPLE, EDGES, identities_path=IDENTITIES)
+
+
+def link_for(platform: str, handle: str) -> str | None:
+    """Return the canonical profile URL for a (platform, handle) pair.
+
+    Returns None for platforms we don't know how to link, so the
+    template can drop them silently rather than rendering a dead
+    badge. `handle` is taken verbatim from identities.csv except for
+    a stripped leading `@` on platforms that don't want it.
+    """
+    h = (handle or "").strip()
+    if not h:
+        return None
+    p = (platform or "").strip().lower()
+    if p == "twitter":
+        return f"https://twitter.com/{h.lstrip('@')}"
+    if p == "linkedin":
+        # Accept either a bare slug ("alice-anderson") or a full URL
+        # already (paste-and-go). If it's already a URL, use as-is.
+        if h.startswith("http"):
+            return h
+        return f"https://linkedin.com/in/{h.lstrip('@')}"
+    if p == "farcaster":
+        return f"https://warpcast.com/{h.lstrip('@')}"
+    if p == "wallet":
+        return f"https://debank.com/profile/{h}"
+    return None
+
+
+def accounts_for(node_id: str) -> list[dict]:
+    """Return the linkable social accounts owned by `node_id`.
+
+    Each dict carries `dm`: `"yes"` | `"no"` | `None` (None when the
+    identities.csv has no `dm` column for this row). The template
+    renders a DM badge only when the value is explicitly yes or no.
+    """
+    out: list[dict] = []
+    for acc in graph.accounts:
+        if acc.owner_person_id != node_id:
+            continue
+        url = link_for(acc.platform, acc.handle)
+        if not url:
+            continue  # unknown platform — drop silently
+        dm_raw = (acc.attributes.get("dm") or "").strip().lower()
+        dm: str | None = None
+        if dm_raw in ("yes", "y", "true", "1"):
+            dm = "yes"
+        elif dm_raw in ("no", "n", "false", "0"):
+            dm = "no"
+        out.append(
+            {"platform": acc.platform, "handle": acc.handle, "url": url, "dm": dm}
+        )
+    return out
 
 
 def node_view(node_id: str) -> dict:
@@ -32,6 +86,7 @@ def node_view(node_id: str) -> dict:
         "company": company,
         "team": team,
         "role": meta.get("role", ""),
+        "accounts": accounts_for(node_id),
     }
 
 

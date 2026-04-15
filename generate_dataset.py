@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import random
+import re
 from itertools import combinations
 
 SEED = 42
@@ -188,7 +189,91 @@ def generate_edges(
     return sorted((a, b, s) for (a, b), s in edges.items())
 
 
+def _slugify_part(part: str) -> str:
+    """Normalize a name fragment into a handle-safe token: lowercase a-z0-9 only."""
+    return re.sub(r"[^a-z0-9]+", "", part.lower())
+
+
+def _split_name(full: str) -> tuple[str, str]:
+    """Split 'First Last' (or 'First Last 2' dedup variants) into (first, rest).
+
+    `rest` is normalized to a single handle-safe token so 'Anderson 2'
+    becomes 'anderson2'. For names with multiple last-name words we
+    join them without a separator to keep handles short.
+    """
+    parts = full.strip().split()
+    if not parts:
+        return "", ""
+    first = _slugify_part(parts[0])
+    rest = "".join(_slugify_part(p) for p in parts[1:]) if len(parts) > 1 else ""
+    return first, rest
+
+
+def generate_identities(
+    rng: random.Random, people: list[dict]
+) -> list[tuple[str, str, str, str]]:
+    """Emit 3 identity rows per person (twitter, linkedin, farcaster).
+
+    Returns list of (person_id, platform, handle, dm) where dm is
+    "yes" or "no" randomly per row. Handles are deduped per platform
+    using numeric suffixes so two people with the same first name (or
+    the same first+last) still get unique handles on each platform.
+    """
+    # Per-platform seen-handle sets for dedup.
+    seen = {"twitter": set(), "linkedin": set(), "farcaster": set()}
+
+    def claim(platform: str, base: str) -> str:
+        """Return the first unused handle at or after `base` on `platform`."""
+        if base and base not in seen[platform]:
+            seen[platform].add(base)
+            return base
+        # Append a numeric suffix until we find a free slot.
+        n = 2
+        while True:
+            candidate = f"{base}{n}"
+            if candidate not in seen[platform]:
+                seen[platform].add(candidate)
+                return candidate
+            n += 1
+
+    rows: list[tuple[str, str, str, str]] = []
+    for p in people:
+        first, rest = _split_name(p["name"])
+        if not first:
+            # Defensive: no name to derive a handle from. Fall back to id.
+            first = _slugify_part(p["id"]) or p["id"]
+        combined = f"{first}_{rest}" if rest else first
+        linked = f"{first}-{rest}" if rest else first
+
+        tw = claim("twitter", combined)
+        li = claim("linkedin", linked)
+        fc = claim("farcaster", first)
+
+        # Spec: twitter handles carry the `@`, linkedin and farcaster
+        # do not. The Flask UI's link_for() strips `@` where it's not
+        # wanted, so either would work, but we match the spec literally.
+        for platform, handle in (
+            ("twitter", f"@{tw}"),
+            ("linkedin", li),
+            ("farcaster", fc),
+        ):
+            # DM availability varies per platform/person; 50% coin flip
+            # per row so the data has realistic variance.
+            dm = "yes" if rng.random() < 0.5 else "no"
+            rows.append((p["id"], platform, handle, dm))
+    return rows
+
+
+def write_identities(path: str, rows: list[tuple[str, str, str, str]]) -> None:
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["person_id", "platform", "handle", "dm"])
+        for r in rows:
+            w.writerow(list(r))
+
+
 def write_people(path: str, people: list[dict]) -> None:
+    # (identity helpers live above; keeping write_* together here)
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["id", "name", "company", "team", "role"])
@@ -243,9 +328,16 @@ def main() -> None:
     rng = random.Random(SEED)
     people, team_members = generate_people(rng)
     edges = generate_edges(rng, people, team_members)
+    identities = generate_identities(rng, people)
     write_people("people.csv", people)
     write_edges("edges.csv", edges)
+    write_identities("identities.csv", identities)
     summarize(people, edges)
+    dm_yes = sum(1 for _, _, _, dm in identities if dm == "yes")
+    print(
+        f"identities   : {len(identities)} rows "
+        f"(3 per person; {dm_yes} with DM=yes, {len(identities) - dm_yes} with DM=no)"
+    )
 
 
 if __name__ == "__main__":
