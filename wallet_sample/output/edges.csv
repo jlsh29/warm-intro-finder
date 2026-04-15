@@ -1,0 +1,5 @@
+from,to,strength,tier
+alice,bob,8,mutual
+alice,wal_0x9999999999999999999999999999999999999999,2,platform_similarity
+alice,wal_0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,2,platform_similarity
+bob,wal_0x9999999999999999999999999999999999999999,8,mutual
