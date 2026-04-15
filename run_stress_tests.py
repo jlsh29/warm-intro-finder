@@ -184,11 +184,14 @@ def main() -> int:
         with open(edges_path, "w", encoding="utf-8") as f:
             f.write("from,to,strength\nu1,u3,5\nu2,u3,7\n")
         with open(identities_path, "w", encoding="utf-8") as f:
-            # u1 and u2 both claim @same — they are the same person.
-            f.write("person_id,platform,handle\n"
-                    "u1,twitter,@same\n"
-                    "u2,twitter,@same\n"
-                    "u2,linkedin,beta-li\n")
+            # Wide-format: u1 and u2 both claim @same on twitter, so
+            # the identity layer should merge them. u2 additionally
+            # owns a LinkedIn slug which migrates to u1 on merge.
+            f.write(
+                "person_id,twitter,farcaster,linkedin,debank\n"
+                "u1,@same,,,\n"
+                "u2,@same,,beta-li,\n"
+            )
         g = build_graph(people_path, edges_path, identities_path=identities_path)
         print(f"  merges proposed: {len(g.merges)}")
         for m in g.merges:
@@ -454,16 +457,29 @@ def main() -> int:
         )
 
         # Identities map every person to their @handle
+        wide_cols = ["person_id", "twitter", "farcaster", "linkedin", "debank"]
         check(
-            "identities.csv has one row per person, twitter platform",
-            len(identity_rows) == 7
-            and all(r["platform"] == "twitter" for r in identity_rows),
+            "identities.csv is wide format with expected columns",
+            list(identity_rows[0].keys()) == wide_cols,
+            f"columns: {list(identity_rows[0].keys())}",
+        )
+        check(
+            "identities.csv has one row per person (all 7)",
+            len(identity_rows) == 7,
             f"got {len(identity_rows)} rows",
         )
         check(
-            "identity handles include the @ prefix",
-            all(r["handle"].startswith("@") for r in identity_rows),
-            f"handles: {[r['handle'] for r in identity_rows]}",
+            "every row fills the twitter cell with @-prefixed handle",
+            all(r["twitter"].startswith("@") for r in identity_rows),
+            f"twitter cells: {[r['twitter'] for r in identity_rows]}",
+        )
+        check(
+            "non-twitter cells are empty (single-platform ingester output)",
+            all(
+                r["farcaster"] == "" and r["linkedin"] == "" and r["debank"] == ""
+                for r in identity_rows
+            ),
+            "unexpectedly-populated cross-platform cells",
         )
 
         # End-to-end: feed the output back into the engine and route a query.

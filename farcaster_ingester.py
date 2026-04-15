@@ -310,12 +310,13 @@ def ingest(
         for (a, b), (s, t, _attrs) in sorted(edges.items()):
             w.writerow([person_id(a), person_id(b), s, t])
 
+    # Wide-format identities.csv.
     with open(identities_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["person_id", "platform", "handle"])
+        w.writerow(["person_id", "twitter", "farcaster", "linkedin", "debank"])
         for fid, meta in sorted_people:
-            handle = f"@{meta['username']}" if meta.get("username") else f"fid:{fid}"
-            w.writerow([person_id(fid), "farcaster", handle])
+            handle = meta["username"] if meta.get("username") else f"fid:{fid}"
+            w.writerow([person_id(fid), "", handle, "", ""])
 
     return {
         "people": people_path,

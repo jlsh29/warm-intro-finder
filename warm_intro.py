@@ -172,6 +172,33 @@ def _build_graph_from_payload(
     payload: RepositoryPayload,
     resolver: IdentityResolver | None,
 ) -> Graph:
+    # Drop any `unknown_user_*` entries defensively. The generator and
+    # ingesters no longer emit them, but older data or a manually
+    # authored people.csv might; they don't belong in the social graph
+    # because they have no platform identity.
+    filtered_people = [p for p in payload.people if not p.id.startswith("unknown_user_")]
+    if len(filtered_people) < len(payload.people):
+        dropped = len(payload.people) - len(filtered_people)
+        print(
+            f"info: excluded {dropped} unknown_user_* entries with no platform identity",
+            file=sys.stderr,
+        )
+        excluded_ids = {
+            p.id for p in payload.people if p.id.startswith("unknown_user_")
+        }
+        payload = RepositoryPayload(
+            people=filtered_people,
+            accounts=[a for a in payload.accounts if a.owner_person_id not in excluded_ids],
+            relationships=[
+                r for r in payload.relationships
+                if r.from_id not in excluded_ids and r.to_id not in excluded_ids
+            ],
+            account_claims=[
+                (acc_id, pid) for acc_id, pid in payload.account_claims
+                if pid not in excluded_ids
+            ],
+        )
+
     # Phase B: ask the resolver for merge proposals, apply them to the
     # payload, then rebuild clusters from the merged data. Routing then
     # operates on the canonical person ids only.

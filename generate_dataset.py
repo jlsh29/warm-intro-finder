@@ -95,18 +95,27 @@ def _fake_eth_address(rng: random.Random) -> str:
 
 
 def generate_people(rng: random.Random) -> tuple[list[dict], dict[str, list[str]]]:
-    """Generate 100 people identified ONLY by a priority-chosen platform username.
+    """Generate people, each with at least one platform identity.
 
-    Real first/last names are sampled internally to build realistic-looking
-    handles (`@orla_dutta`, `orla`, `orla-dutta`) but are discarded - they
-    are never written to any CSV. Company and team stay on the in-memory
-    dict because `generate_edges` needs them to weight intra-team vs
-    cross-company connections; they are also never written to the CSV.
+    Each person rolls 4 independent platform-presence coins. If all four
+    miss, the person is SKIPPED entirely - they're not added to
+    `people`, not added to `team_members`, and therefore never appear
+    in the final people.csv, edges.csv, or identities.csv. No
+    `unknown_user_*` rows are produced.
+
+    For included persons the canonical `id` uses the highest-priority
+    platform as its namespace prefix; the wide-format `handles` dict
+    records ALL platform handles the person owns so identities.csv can
+    expose every link in the Flask UI.
+
+    Real first/last names are scratch values used only to build
+    realistic-looking handles; they are never written to any CSV.
+    Company and team stay on the in-memory dict because `generate_edges`
+    uses them to weight tier-correct edges; they're also never written.
     """
     people: list[dict] = []
     team_members: dict[str, list[str]] = {}
     used = {p: set() for p, _ in PLATFORM_PROBABILITIES}
-    unknown_counter = 0
 
     for company, size in COMPANIES:
         n_teams = max(2, min(4, size // 6))
@@ -117,58 +126,57 @@ def generate_people(rng: random.Random) -> tuple[list[dict], dict[str, list[str]
             team_key = f"{company} / Team {t_idx}"
             team_members[team_key] = []
             for _ in range(t_size):
-                # Scratch first/last - discarded after handle generation.
                 first = _slugify(rng.choice(FIRST_NAMES))
                 last = _slugify(rng.choice(LAST_NAMES))
 
-                # Independent platform-presence coin flips.
                 present = {
                     p: rng.random() < prob for p, prob in PLATFORM_PROBABILITIES
                 }
+                # Skip entirely if no platform rolled in. Keeps the
+                # graph clean of `unknown_user_*` entries.
+                if not any(present.values()):
+                    continue
 
-                # Priority resolution: Twitter > Farcaster > LinkedIn > wallet.
-                person_id: str
-                platform: str | None
-                handle: str | None
+                # Generate every handle the person has, per-platform
+                # deduped against global sets so the same handle
+                # doesn't appear twice anywhere in the system.
+                handles: dict[str, str] = {}
                 if present["twitter"]:
-                    handle = _claim(used["twitter"], f"{first}_{last}")
-                    person_id = f"tw_{handle}"
-                    platform = "twitter"
-                    # Twitter UI handles carry a leading @; the id strips it.
-                    handle = f"@{handle}"
-                elif present["farcaster"]:
-                    handle = _claim(used["farcaster"], first)
-                    person_id = f"fc_{handle}"
-                    platform = "farcaster"
-                elif present["linkedin"]:
-                    handle = _claim(used["linkedin"], f"{first}-{last}")
-                    person_id = f"li_{handle}"
-                    platform = "linkedin"
-                elif present["wallet"]:
-                    address = _fake_eth_address(rng)
-                    # Vanishingly low collision rate for 40 random hex chars;
-                    # still dedupe to be safe.
-                    address = _claim(used["wallet"], address)
-                    person_id = f"wal_{address}"
-                    platform = "wallet"
-                    handle = address
-                else:
-                    unknown_counter += 1
-                    person_id = f"unknown_user_{unknown_counter}"
-                    platform = None
-                    handle = None
+                    h = _claim(used["twitter"], f"{first}_{last}")
+                    handles["twitter"] = f"@{h}"
+                if present["farcaster"]:
+                    h = _claim(used["farcaster"], first)
+                    handles["farcaster"] = h
+                if present["linkedin"]:
+                    h = _claim(used["linkedin"], f"{first}-{last}")
+                    handles["linkedin"] = h
+                if present["wallet"]:
+                    addr = _claim(used["wallet"], _fake_eth_address(rng))
+                    handles["wallet"] = addr
 
-                person = {
-                    "id": person_id,
-                    # company and team are INTERNAL - used by generate_edges
-                    # to weight tier-correct edges; never written to CSV.
-                    "company": company,
-                    "team": team_key,
-                    # platform and handle are what identities.csv surfaces.
-                    "platform": platform,
-                    "handle": handle,
-                }
-                people.append(person)
+                # Priority resolution for the namespaced id.
+                if "twitter" in handles:
+                    person_id = f"tw_{handles['twitter'].lstrip('@')}"
+                    primary = "twitter"
+                elif "farcaster" in handles:
+                    person_id = f"fc_{handles['farcaster']}"
+                    primary = "farcaster"
+                elif "linkedin" in handles:
+                    person_id = f"li_{handles['linkedin']}"
+                    primary = "linkedin"
+                else:  # wallet only
+                    person_id = f"wal_{handles['wallet']}"
+                    primary = "wallet"
+
+                people.append(
+                    {
+                        "id": person_id,
+                        "company": company,
+                        "team": team_key,
+                        "primary": primary,
+                        "handles": handles,  # all filled platforms
+                    }
+                )
                 team_members[team_key].append(person_id)
     return people, team_members
 
@@ -259,30 +267,43 @@ def generate_edges(
     return sorted((a, b, s) for (a, b), s in edges.items())
 
 
-def generate_identities(
-    rng: random.Random, people: list[dict]
-) -> list[tuple[str, str, str, str]]:
-    """Emit one identity row per person: the priority-chosen platform only.
+def generate_identities(_rng: random.Random, people: list[dict]) -> list[dict]:
+    """Emit one wide-format identities row per person.
 
-    Persons who didn't resolve to any platform (`unknown_user_*`) are
-    skipped - they have no identity to surface. Every other person
-    contributes exactly one row with a seeded random DM flag.
+    Row shape: `{person_id, twitter, farcaster, linkedin, debank}` with
+    empty strings for platforms the person doesn't own. Every included
+    person has at least one platform filled by construction (the
+    generator excludes zero-platform persons). The `_rng` arg is
+    unused here but kept on the signature so future per-row metadata
+    (e.g. `dm` flags re-introduced as extra columns) can be added
+    without breaking the caller.
     """
-    rows: list[tuple[str, str, str, str]] = []
+    rows: list[dict] = []
     for p in people:
-        if not p["platform"] or not p["handle"]:
-            continue
-        dm = "yes" if rng.random() < 0.5 else "no"
-        rows.append((p["id"], p["platform"], p["handle"], dm))
+        handles = p["handles"]
+        rows.append(
+            {
+                "person_id": p["id"],
+                "twitter": handles.get("twitter", ""),
+                "farcaster": handles.get("farcaster", ""),
+                "linkedin": handles.get("linkedin", ""),
+                # Internal platform name is `wallet`; CSV column is `debank`.
+                "debank": handles.get("wallet", ""),
+            }
+        )
     return rows
 
 
-def write_identities(path: str, rows: list[tuple[str, str, str, str]]) -> None:
+WIDE_IDENTITY_COLUMNS = ("person_id", "twitter", "farcaster", "linkedin", "debank")
+
+
+def write_identities(path: str, rows: list[dict]) -> None:
+    """Write identities.csv in wide format (one row per person)."""
     with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(["person_id", "platform", "handle", "dm"])
+        w = csv.DictWriter(f, fieldnames=list(WIDE_IDENTITY_COLUMNS))
+        w.writeheader()
         for r in rows:
-            w.writerow(list(r))
+            w.writerow(r)
 
 
 def write_people(path: str, people: list[dict]) -> None:
@@ -319,15 +340,26 @@ def summarize(people: list[dict], edges: list[tuple[str, str, int]]) -> None:
         degrees[b] += 1
     deg_vals = sorted(degrees.values())
     isolated = sum(1 for d in deg_vals if d == 0)
-    platform_counts: dict[str, int] = {}
+    # Per-platform totals: primary (priority-chosen => id prefix) and
+    # raw handle counts across the wide-format identity rows. Primary
+    # sums to len(people); raw sums can exceed that because each person
+    # can own multiple platforms.
+    primary_counts: dict[str, int] = {}
+    raw_counts: dict[str, int] = {}
     for p in people:
-        key = p["platform"] or "unknown_user"
-        platform_counts[key] = platform_counts.get(key, 0) + 1
-    print(f"people       : {len(people)}")
-    order = ["twitter", "farcaster", "linkedin", "wallet", "unknown_user"]
+        primary_counts[p["primary"]] = primary_counts.get(p["primary"], 0) + 1
+        for plat in p["handles"]:
+            raw_counts[plat] = raw_counts.get(plat, 0) + 1
+    print(f"people       : {len(people)} (all with >=1 platform)")
+    order = ["twitter", "farcaster", "linkedin", "wallet"]
+    print(f"  primary platform (id prefix):")
     for k in order:
-        if k in platform_counts:
-            print(f"  {k:<14}: {platform_counts[k]}")
+        if k in primary_counts:
+            print(f"    {k:<12}: {primary_counts[k]}")
+    print(f"  handles owned (across all platforms):")
+    for k in order:
+        if k in raw_counts:
+            print(f"    {k:<12}: {raw_counts[k]}")
     print(f"edges        : {len(edges)}")
     for tier, values in tiers.items():
         if not values:
@@ -354,11 +386,13 @@ def main() -> None:
     write_edges("edges.csv", edges)
     write_identities("identities.csv", identities)
     summarize(people, edges)
-    dm_yes = sum(1 for _, _, _, dm in identities if dm == "yes")
+    total_handles = sum(
+        sum(1 for v in r.values() if v and v != r["person_id"])
+        for r in identities
+    )
     print(
-        f"identities   : {len(identities)} rows "
-        f"(1 per non-unknown person; "
-        f"{dm_yes} with DM=yes, {len(identities) - dm_yes} with DM=no)"
+        f"identities   : {len(identities)} rows (wide format, 1 per person); "
+        f"{total_handles} platform handles total"
     )
 
 

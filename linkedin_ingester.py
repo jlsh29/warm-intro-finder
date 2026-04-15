@@ -276,14 +276,14 @@ def ingest(
         for (a, b), (s, t) in sorted(edges.items()):
             w.writerow([person_id(a), person_id(b), s, t])
 
+    # Wide-format identities.csv: this ingester fills the `linkedin`
+    # cell with the slug (not the full URL - the Flask UI's link_for()
+    # builds the full URL from the slug at render time).
     with open(identities_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["person_id", "platform", "handle"])
+        w.writerow(["person_id", "twitter", "farcaster", "linkedin", "debank"])
         for slug, _ in sorted_people:
-            handle = handles.get(slug, slug)
-            # Identity handle is the full URL when we have it (more useful
-            # than the bare slug), falling back to the slug.
-            w.writerow([person_id(slug), "linkedin", handle])
+            w.writerow([person_id(slug), "", "", slug, ""])
 
     return {
         "people": people_path,

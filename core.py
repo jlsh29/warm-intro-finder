@@ -364,17 +364,38 @@ class CSVRepository:
                 people.append(Person(id=pid, name=name, attributes=attrs))
         return people
 
+    # Map CSV column name to internal platform label. Keeps `wallet` as
+    # the internal token across the codebase (matches app.py link_for,
+    # identity-layer semantics, and existing SocialAccount usage) while
+    # accepting `debank` as the human-facing column header.
+    _PLATFORM_COLUMNS = {
+        "twitter": "twitter",
+        "farcaster": "farcaster",
+        "linkedin": "linkedin",
+        "debank": "wallet",
+    }
+
     def _load_accounts(
         self, people: list[Person]
     ) -> tuple[list[SocialAccount], list[tuple[str, str]]]:
-        """Parse `identities.csv` if provided.
+        """Parse `identities.csv` in **wide format** if provided.
+
+        Expected header: `person_id,twitter,farcaster,linkedin,debank`.
+        Every non-empty platform cell on a row becomes one SocialAccount
+        owned by that row's `person_id`. All platform columns are
+        optional in the header (we use whichever ones are present) but
+        at least one must exist, or there's nothing to load.
 
         Returns `(accounts, claims)`:
-        - `accounts` is one SocialAccount per unique `platform:handle` id,
-          attached to the *first* person that claimed it.
+        - `accounts` is one SocialAccount per unique `platform:handle`
+          id, attached to the *first* person that claimed it. Multiple
+          accounts per person is expected and normal.
         - `claims` is the raw `(account_id, person_id)` list including
-          duplicates - kept so the identity layer can detect cross-person
-          overlap and propose merges.
+          duplicates - the identity layer uses this to detect cross-
+          person account overlap and propose merges.
+
+        Rows whose `person_id` isn't in `people` (e.g. references to
+        excluded `unknown_user_*` entries) are skipped silently.
         """
         if not self.identities_path:
             return [], []
@@ -383,48 +404,43 @@ class CSVRepository:
         claims: list[tuple[str, str]] = []
         with open(self.identities_path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            required = {"person_id", "platform", "handle"}
-            if not reader.fieldnames or required - set(reader.fieldnames):
+            if not reader.fieldnames or "person_id" not in reader.fieldnames:
                 raise ValueError(
-                    f"{self.identities_path}: expected columns "
-                    f"{sorted(required)}"
+                    f"{self.identities_path}: expected `person_id` column"
                 )
-            # Any column that isn't one of the required three is
-            # preserved on SocialAccount.attributes so downstream
-            # consumers (UI, analytics) can surface platform-specific
-            # metadata like "dm: yes/no" or "verified: true" without
-            # the loader needing to know about each field.
-            extra_cols = [
-                c for c in reader.fieldnames if c not in required
+            # Which platform columns are actually present in this file.
+            present_cols = [
+                c for c in self._PLATFORM_COLUMNS if c in reader.fieldnames
             ]
+            if not present_cols:
+                raise ValueError(
+                    f"{self.identities_path}: needs at least one platform "
+                    f"column ({list(self._PLATFORM_COLUMNS)})"
+                )
             for row in reader:
                 pid = (row["person_id"] or "").strip()
-                platform = (row["platform"] or "").strip().lower()
-                handle = (row["handle"] or "").strip()
-                if not pid or not platform or not handle:
+                if not pid or pid not in by_id:
                     continue
-                if pid not in by_id:
-                    continue
-                acc_id = f"{platform}:{handle}"
-                claims.append((acc_id, pid))
-                if acc_id in accounts:
-                    # Subsequent claims for the same account are tracked
-                    # in `claims` so the identity layer can detect cross-
-                    # person overlap and propose a merge. We do NOT
-                    # silently overwrite the first claim's owner here.
-                    continue
-                attrs = {
-                    c: (row.get(c) or "").strip() for c in extra_cols
-                }
-                account = SocialAccount(
-                    id=acc_id,
-                    platform=platform,
-                    handle=handle,
-                    owner_person_id=pid,
-                    attributes=attrs,
-                )
-                accounts[acc_id] = account
-                by_id[pid].accounts.append(account)
+                for col in present_cols:
+                    handle = (row.get(col) or "").strip()
+                    if not handle:
+                        continue
+                    platform = self._PLATFORM_COLUMNS[col]
+                    acc_id = f"{platform}:{handle}"
+                    claims.append((acc_id, pid))
+                    if acc_id in accounts:
+                        # Duplicate claims tracked in `claims` so the
+                        # identity layer can propose a merge. Do NOT
+                        # silently overwrite the first claim's owner.
+                        continue
+                    account = SocialAccount(
+                        id=acc_id,
+                        platform=platform,
+                        handle=handle,
+                        owner_person_id=pid,
+                    )
+                    accounts[acc_id] = account
+                    by_id[pid].accounts.append(account)
         return list(accounts.values()), claims
 
     def _load_relationships(self, people: list[Person]) -> list[Relationship]:

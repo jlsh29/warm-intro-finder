@@ -294,13 +294,15 @@ def ingest(
         for (a, b), (s, t) in sorted(edges.items()):
             w.writerow([a, b, s, t])
 
+    # Wide-format identities.csv. A person with multiple wallets will
+    # end up on multiple rows here (one per wallet). Post-import the
+    # identity layer can collapse them or the user can merge manually.
     with open(identities_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["person_id", "platform", "handle"])
-        # Every wallet -> identity row, even those without explicit mapping.
+        w.writerow(["person_id", "twitter", "farcaster", "linkedin", "debank"])
         for wallet in sorted(seen_wallets):
             pid = person_for(wallet)
-            w.writerow([pid, "wallet", wallet])
+            w.writerow([pid, "", "", "", wallet])
 
     print(
         f"info: interactions={len(interactions)} unique_wallets={len(seen_wallets)} "

@@ -237,11 +237,15 @@ def ingest(
         for (a, b), (s, t) in sorted(edges.items()):
             w.writerow([person_id(a), person_id(b), s, t])
 
+    # Wide-format identities.csv: one row per person with platform
+    # columns for every source (even though this ingester only fills
+    # the twitter cell, the header lists all four so the file can be
+    # merged with other ingesters' output by simple row concatenation).
     with open(identities_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["person_id", "platform", "handle"])
+        w.writerow(["person_id", "twitter", "farcaster", "linkedin", "debank"])
         for h, _ in sorted_handles:
-            w.writerow([person_id(h), "twitter", f"@{h}"])
+            w.writerow([person_id(h), f"@{h}", "", "", ""])
 
     return {
         "people": people_path,
