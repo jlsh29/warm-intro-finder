@@ -262,9 +262,13 @@ def ingest(
 
     with open(people_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["id", "name", "company", "role"])
-        for slug, p in sorted_people:
-            w.writerow([person_id(slug), p["name"], p["company"], p["role"]])
+        # Id-only schema: the LinkedIn slug IS the identity. Real
+        # names, companies, and roles from the source CSV are not
+        # preserved - they're descriptive PII that the engine no
+        # longer consumes.
+        w.writerow(["id"])
+        for slug, _p in sorted_people:
+            w.writerow([person_id(slug)])
 
     with open(edges_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)

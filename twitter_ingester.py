@@ -223,9 +223,13 @@ def ingest(
 
     with open(people_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["id", "name"])
-        for h, name in sorted_handles:
-            w.writerow([person_id(h), name or h])
+        # Id-only schema: the handle IS the identity. Display names
+        # from the source CSV are not preserved - use identities.csv
+        # for the @handle form and the engine's label fallback to
+        # show the id as-is.
+        w.writerow(["id"])
+        for h, _name in sorted_handles:
+            w.writerow([person_id(h)])
 
     with open(edges_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)

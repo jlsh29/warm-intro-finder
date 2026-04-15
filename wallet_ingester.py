@@ -281,9 +281,12 @@ def ingest(
 
     with open(people_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["id", "name"])
+        # Id-only schema: the person_id IS the identity (either from
+        # the mapping or a wal_<address> fallback). Names collected
+        # from the mapping file are not preserved.
+        w.writerow(["id"])
         for pid in sorted(people):
-            w.writerow([pid, people[pid]])
+            w.writerow([pid])
 
     with open(edges_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)

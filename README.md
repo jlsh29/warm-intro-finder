@@ -6,7 +6,12 @@ chain of mutual connections you'd use to get introduced.
 
 - **Algorithm:** multi-source Dijkstra over an undirected graph with
   `cost = 1 / strength`. With uniform strengths it reduces to BFS.
-- **Inputs:** two CSV files (`people.csv`, `edges.csv`).
+- **Inputs:** two (or three) CSV files — `people.csv`, `edges.csv`,
+  and optional `identities.csv`.
+- **Identity model:** every person is identified by a single
+  platform-based username in the form `tw_<handle>` / `fc_<handle>` /
+  `li_<slug>` / `wal_<0x...>` / `unknown_user_<N>`. No real names,
+  companies, roles, or teams are stored or displayed.
 - **Interfaces:** CLI, Flask web UI, JSON export.
 - **Runtime:** pure Python stdlib + Flask. Tested in-memory up to a few
   thousand nodes.
@@ -32,20 +37,26 @@ python warm_intro.py --help
 
 | column | required | notes |
 |---|---|---|
-| `id` | **yes** | Canonical, unique identifier (e.g. `p001`, a handle, a UUID). |
-| `name` | optional | Display name. Used for lookup by name and in output. |
-| `company` | optional | Surfaced by `--explain`. |
-| `team` | optional | Surfaced by `--explain`. If prefixed with the company name plus ` / `, the prefix is stripped on display only. |
-| `role` | optional | Surfaced by `--explain`. |
+| `id` | **yes** | Platform-namespaced username or wallet address. One of: `tw_<twitter_handle>`, `fc_<farcaster_handle>`, `li_<linkedin_slug>`, `wal_<0x...>`, or `unknown_user_<N>`. Must be globally unique. |
+| `name` | optional | Legacy display-name column. Omitted from generated data; still honored if present (e.g. when you bring your own enriched CSV). |
+| `company` / `team` / `role` | optional | Same — honored if present, ignored if absent. Surfaced by `--explain` only when non-empty. |
 
-Extra columns are ignored. Duplicate `id` values cause an error. Duplicate
-names are allowed but must be disambiguated by id at query time.
+Extra columns are ignored. Duplicate `id` values cause an error.
+
+**After the username-only transform the default generator emits only the `id` column:**
 
 ```csv
-id,name,company,team,role
-p001,Orla Dutta,Helix Labs,Helix Labs / Team 1,Engineer
-p002,Wyatt Ito,Helix Labs,Helix Labs / Team 1,Engineering Manager
+id
+tw_orla_dutta
+fc_sana
+li_omar-erikson
+wal_0xabcd...1234
+unknown_user_1
 ```
+
+The engine's `label()` falls back to `id` when `name` is absent, so
+routing output reads like `tw_orla_dutta -(8|direct)-> fc_sana` with
+no real names anywhere.
 
 ### `edges.csv` — one row per connection
 
@@ -66,10 +77,36 @@ Edges are treated as **undirected**. Rules:
 
 ```csv
 from,to,strength
-p001,p008,8
-p008,p004,10
-p001,p006,2
+tw_orla_dutta,tw_giulia_tanaka,8
+tw_giulia_tanaka,tw_gabriela_vargas,10
+tw_orla_dutta,fc_bruno,2
 ```
+
+### `identities.csv` — one row per person, priority platform only
+
+After the username-only transform, each non-`unknown_user` person has
+exactly one row listing the platform that determined their `id`.
+
+| column | required | notes |
+|---|---|---|
+| `person_id` | **yes** | Matches an `id` in `people.csv`. |
+| `platform` | **yes** | One of `twitter`, `farcaster`, `linkedin`, `wallet`. |
+| `handle` | **yes** | Platform-specific handle (Twitter keeps `@`, others bare). |
+| `dm` | optional | `yes` / `no` — is this handle DM-reachable? Surfaced as a badge in the Flask UI. |
+| extra columns | — | Preserved into `SocialAccount.attributes` for downstream tools. |
+
+```csv
+person_id,platform,handle,dm
+tw_orla_dutta,twitter,@orla_dutta,yes
+fc_sana,farcaster,sana,no
+li_omar-erikson,linkedin,omar-erikson,yes
+wal_0xabcd...1234,wallet,0xabcd...1234,no
+```
+
+Loading `identities.csv` enables Phase B identity merging: when two
+person ids both claim ownership of the same account (same
+`platform:handle` pair), the engine collapses them onto one canonical
+person before routing.
 
 ---
 
@@ -122,27 +159,22 @@ Entry and target tokens can be either an `id` or a `name`:
 
 ```text
 Best warm intro path (3 hop(s), total strength 24):
-  Orla Dutta (p001) -(8)-> Bruno Beck (p006) -(10)-> Bruno Nakamura (p097) -(6)-> Divya Moreau (p100)
-Entry point used: Orla Dutta (p001)
+  tw_orla_dutta -(8|direct)-> tw_bruno_beck -(10|direct)-> tw_bruno_nakamura -(6|direct)-> tw_divya_moreau
+Entry point used: tw_orla_dutta
 
 Alternative paths (1):
-  [4 hops, strength 36] Vera Okafor (p020) -(10)-> Felix Moreau (p017) -(8)-> ...
+  [4 hops, strength 36] tw_vera_okafor -(10|direct)-> tw_felix_moreau -(8|direct)-> ...
 
 Why: Best warm path has 3 hop(s) with total strength 24 (cost 0.342),
-routed through entry point Orla Dutta (p001). Selected via multi-source
+routed through entry point tw_orla_dutta. Selected via multi-source
 Dijkstra on an undirected graph with edge cost = 1/strength; 1
 alternative path(s) of the same total cost were found.
 ```
 
-With `--explain`:
-
-```text
-Best warm intro path (3 hop(s), total strength 24):
-  Orla Dutta (p001) [Helix Labs / Team 1 / Engineer]
-    -(8)-> Bruno Beck (p006) [Helix Labs / Team 1 / Engineer]
-    -(10)-> Bruno Nakamura (p097) [Solstice Partners / Team 2 / Researcher]
-    -(6)-> Divya Moreau (p100) [Solstice Partners / Team 2 / Founder]
-```
+`--explain` additionally surfaces any `company` / `team` / `role` columns
+from `people.csv` in `[brackets]` after each person. The default generated
+dataset has no such columns, so `--explain` is a no-op on it — the flag
+is there for users who bring their own enriched data.
 
 ### Output (JSON, via `--output`)
 
@@ -152,24 +184,24 @@ Best warm intro path (3 hop(s), total strength 24):
   "hops": 3,
   "cost": 0.342,
   "total_strength": 24.0,
-  "entry_used": { "id": "p001", "name": "Orla Dutta" },
+  "entry_used": { "id": "tw_orla_dutta", "name": "tw_orla_dutta" },
   "best_path": {
-    "ids": ["p001", "p006", "p097", "p100"],
+    "ids": ["tw_orla_dutta", "tw_bruno_beck", "tw_bruno_nakamura", "tw_divya_moreau"],
     "nodes": [
-      { "id": "p001", "name": "Orla Dutta" },
-      { "id": "p006", "name": "Bruno Beck" },
-      { "id": "p097", "name": "Bruno Nakamura" },
-      { "id": "p100", "name": "Divya Moreau" }
+      { "id": "tw_orla_dutta", "name": "tw_orla_dutta" },
+      { "id": "tw_bruno_beck", "name": "tw_bruno_beck" },
+      { "id": "tw_bruno_nakamura", "name": "tw_bruno_nakamura" },
+      { "id": "tw_divya_moreau", "name": "tw_divya_moreau" }
     ],
     "edges": [
-      { "from": "p001", "to": "p006", "strength": 8.0, "cost": 0.125 },
-      { "from": "p006", "to": "p097", "strength": 10.0, "cost": 0.1 },
-      { "from": "p097", "to": "p100", "strength": 6.0, "cost": 0.167 }
+      { "from": "tw_orla_dutta", "to": "tw_bruno_beck", "strength": 8.0, "cost": 0.125 },
+      { "from": "tw_bruno_beck", "to": "tw_bruno_nakamura", "strength": 10.0, "cost": 0.1 },
+      { "from": "tw_bruno_nakamura", "to": "tw_divya_moreau", "strength": 6.0, "cost": 0.167 }
     ],
     "hops": 3,
     "total_strength": 24.0,
     "total_cost": 0.392,
-    "display": "Orla Dutta (p001) -(8)-> Bruno Beck (p006) -> ..."
+    "display": "tw_orla_dutta -(8|direct)-> tw_bruno_beck -> ..."
   },
   "alternatives": [ /* same shape */ ],
   "explanation": "..."
@@ -198,26 +230,29 @@ distinguish "no path" from "tool crashed".
 **Simple query (BFS-equivalent if strength column is absent):**
 ```bash
 python warm_intro.py --people people.csv --edges edges.csv \
-  --entry alice --target zoe
+  --entry tw_orla_dutta --target tw_divya_moreau
 ```
 
 **Multi-source, top-5 paths:**
 ```bash
 python warm_intro.py --people people.csv --edges edges.csv \
-  --entry p001,p020,p030 --target p100 --top-k 5
+  --entry tw_orla_dutta,fc_sana,li_omar-erikson --target tw_bella_xu --top-k 5
 ```
 
 **Lookup by name (case-insensitive):**
 ```bash
-python warm_intro.py --people people.csv --edges edges.csv \
+# Only meaningful when people.csv has a `name` column. On the default
+# generated data (id-only schema), pass ids directly as shown above.
+python warm_intro.py --people enriched_people.csv --edges edges.csv \
   --entry "Orla Dutta" --target "Divya Moreau"
 ```
 
-**Full context + JSON dump:**
+**JSON dump + identities (enables Phase B identity merging):**
 ```bash
 python warm_intro.py --people people.csv --edges edges.csv \
-  --entry p001,p020,p030 --target p100 --top-k 5 \
-  --explain --output result.json
+  --identities identities.csv \
+  --entry tw_orla_dutta,fc_sana --target tw_bella_xu --top-k 5 \
+  --output result.json
 ```
 
 ---
@@ -227,19 +262,30 @@ python warm_intro.py --people people.csv --edges edges.csv \
 A single-page Flask app for browsing the same query interface visually.
 
 ```bash
+# Without identities.csv:
 python app.py
-# then open http://127.0.0.1:5000/
+
+# With identities.csv for social-link badges on each person card:
+WARM_INTRO_IDENTITIES=identities.csv python app.py
+
+# Then open http://127.0.0.1:5000/
 ```
 
 Features:
 
-- Multi-select dropdown for entry points (sorted by name) plus a free-text
-  fallback for comma-separated ids/names
+- Multi-select dropdown for entry points plus a free-text fallback for
+  comma-separated ids
 - Dropdown for the target
-- `top-k` numeric input and an "Show company / team / role" checkbox
+- `top-k` numeric input and a submit button
 - Results render as a horizontal chain of node cards with arrows between
   them; entry highlighted in blue, target highlighted in orange
 - Best path tagged **BEST**, each alternative tagged **ALT 1**, **ALT 2**, …
+- When `identities.csv` is loaded, each person card shows a clickable
+  link to their priority-chosen platform (Twitter → `twitter.com/...`,
+  LinkedIn → `linkedin.com/in/...`, Farcaster → `warpcast.com/...`,
+  wallet → `debank.com/profile/...`) with a green `DM ✓` or grey
+  `DM ✗` badge indicating availability. `unknown_user_*` rows render
+  plain with no link row.
 - Inline error banner for ambiguous names, unknown people, and missing inputs
 - Shows an "UNREACHABLE" card when no path exists
 
@@ -258,10 +304,24 @@ WARM_INTRO_PEOPLE=my_people.csv WARM_INTRO_EDGES=my_edges.csv python app.py
 
 ## Companion scripts
 
-### `generate_dataset.py` — synthetic professional network
+### `generate_dataset.py` — synthetic social graph
 
-Generates a seeded 100-person, 200-edge network across 6 companies with
-realistic tiered edge density and **tiered strengths**:
+Generates a seeded 100-person, 200-edge network. Each person is
+assigned a **single canonical platform identity** via priority
+resolution:
+
+1. Twitter (probability 0.70) → id is `tw_<handle>`
+2. else Farcaster (0.60) → `fc_<handle>`
+3. else LinkedIn (0.50) → `li_<slug>`
+4. else wallet (0.30) → `wal_<0x...>`
+5. else `unknown_user_<N>`
+
+Independent coin flips per platform mean most people have a Twitter
+handle available, a smaller share roll only Farcaster, fewer roll
+only LinkedIn, fewer still only a wallet, and a handful roll nothing.
+On seed 42 the default distribution is ~72/15/7/0/6 respectively.
+
+Edge density and strengths follow three relationship tiers:
 
 | tier | density | strength range |
 |---|---|---|
@@ -269,13 +329,19 @@ realistic tiered edge density and **tiered strengths**:
 | intra-company cross-team | 15% | 4–6 |
 | cross-company (ex-colleagues, conferences) | 25% | 1–3 |
 
+Team and company are tracked *internally* to produce realistic edge
+clusters but are **never written to the output CSVs** — the
+generated `people.csv` has only an `id` column.
+
 ```bash
 python generate_dataset.py
-# writes people.csv and edges.csv in the working directory
+# writes people.csv, edges.csv, and identities.csv in the working directory
 ```
 
 Seed is `SEED=42` by default; change it in the script for variation.
-Summary now reports min/avg/max strength per tier.
+`identities.csv` contains exactly one row per non-`unknown_user`
+person: the priority-chosen platform handle with a random `dm`
+(yes/no) flag.
 
 ### `analyze.py` — connector & introducer analysis
 
@@ -373,7 +439,7 @@ python twitter_ingester.py \
 | `--tier` | `platform_similarity` | Tier label for mutual edges. A bare follow is weak signal; default is conservative. Use `mutual` if you trust your follow graph. |
 
 **Person ids:** `tw_<lowercase_handle>` (e.g. `tw_alice`).
-**Output:** `people.csv` (id, name), `edges.csv` (from, to, strength, tier), `identities.csv` (person_id, twitter, @handle).
+**Output:** `people.csv` (id only), `edges.csv` (from, to, strength, tier), `identities.csv` (person_id, twitter, @handle).
 
 ### `linkedin_ingester.py` — LinkedIn Connections.csv exports
 
@@ -418,11 +484,12 @@ python linkedin_ingester.py \
 | `--tier` | `mutual` | A LinkedIn connection is bidirectional acceptance — stronger evidence than a Twitter follow. |
 
 **Person ids:** `li_<slug>` derived from the LinkedIn URL `/in/<slug>` path. Bare slugs accepted as fallback.
-**Output:** `people.csv` (id, name, **company, role**), `edges.csv`, `identities.csv` (person_id, linkedin, full LinkedIn URL).
+**Output:** `people.csv` (id only), `edges.csv`, `identities.csv` (person_id, linkedin, full LinkedIn URL).
 
-LinkedIn data uniquely populates `company` and `role` columns in
-`people.csv`, so the engine's `--explain` flag shows full org context
-on every node.
+Company and role signals present in the source `Connections.csv` are
+read by the auto-detector (so the column-name match works on any
+third-party export shape) but **not** preserved in the output CSVs —
+the system only routes on platform-based identity.
 
 ### `farcaster_ingester.py` — Farcaster follows + channels
 
@@ -476,7 +543,7 @@ python farcaster_ingester.py \
 | `--tier` | `mutual` | Farcaster follows are more deliberate than Twitter's. |
 
 **Person ids:** `fc_<numeric_fid>` (e.g. `fc_1001`). Username preserved in identities.csv as `@username`.
-**Output:** `people.csv`, `edges.csv`, `identities.csv` (person_id, farcaster, @handle).
+**Output:** `people.csv` (id only), `edges.csv`, `identities.csv` (person_id, farcaster, @handle).
 
 ### `wallet_ingester.py` — blockchain wallet interactions
 
@@ -528,7 +595,7 @@ python wallet_ingester.py \
 
 **Cross-wallet aggregation:** if Alice owns 3 wallets, every interaction between any of them and Bob is summed into one `(alice, bob)` count before tier classification. EVM addresses are lowercased; other formats pass through unchanged.
 
-**Output:** `people.csv`, `edges.csv`, `identities.csv` (person_id, wallet, full address — every wallet appears, including those owned by mapped persons).
+**Output:** `people.csv` (id only), `edges.csv`, `identities.csv` (person_id, wallet, full address — every wallet appears, including those owned by mapped persons).
 
 ### Plugging adapter output into the engine
 
@@ -540,7 +607,7 @@ python warm_intro.py \
     --people    fc_data/people.csv \
     --edges     fc_data/edges.csv \
     --identities fc_data/identities.csv \
-    --entry fc_1001 --target fc_1003 --explain
+    --entry fc_1001 --target fc_1003
 ```
 
 The `--identities` flag is what triggers Phase B identity merging — when
@@ -617,9 +684,10 @@ warm_intro/
 ├── wallet_ingester.py     # Blockchain wallet interactions   -> engine CSVs
 ├── wallet_sample/
 │
-├── people.csv             # generated or your own
-├── edges.csv              # generated or your own (with optional strength)
-├── identities.csv.example # sample person <-> account mapping
+├── people.csv             # generated: id-only schema (username-based)
+├── edges.csv              # generated (with strength + tier columns)
+├── identities.csv         # generated: one row per person, priority platform
+├── identities.csv.example # small hand-authored sample (pre-transform shape)
 ├── test_people.csv        # stress-test fixtures
 ├── test_edges.csv
 ├── network_report.json    # produced by analyze.py

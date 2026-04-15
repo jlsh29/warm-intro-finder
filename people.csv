@@ -1,101 +1,101 @@
-id,name,company,team,role
-p001,Orla Dutta,Helix Labs,Helix Labs / Team 1,Engineer
-p002,Wyatt Ito,Helix Labs,Helix Labs / Team 1,Engineering Manager
-p003,Omar Erikson,Helix Labs,Helix Labs / Team 1,Founder
-p004,Gabriela Vargas,Helix Labs,Helix Labs / Team 1,Founder
-p005,Imani Costa,Helix Labs,Helix Labs / Team 1,Partner
-p006,Bruno Beck,Helix Labs,Helix Labs / Team 1,Engineer
-p007,Felix Gupta,Helix Labs,Helix Labs / Team 1,Engineering Manager
-p008,Giulia Tanaka,Helix Labs,Helix Labs / Team 1,Engineer
-p009,Jaspar Gupta,Helix Labs,Helix Labs / Team 2,Founder
-p010,Pascal Wang,Helix Labs,Helix Labs / Team 2,Analyst
-p011,Anika Hakim,Helix Labs,Helix Labs / Team 2,Researcher
-p012,Lucia Ito,Helix Labs,Helix Labs / Team 2,Engineer
-p013,Ximena Zhou,Helix Labs,Helix Labs / Team 2,Staff Engineer
-p014,Tomoko Nakamura,Helix Labs,Helix Labs / Team 2,Designer
-p015,Rosa Erikson,Helix Labs,Helix Labs / Team 2,Engineering Manager
-p016,Ximena Kapoor,Helix Labs,Helix Labs / Team 3,Senior Engineer
-p017,Felix Moreau,Helix Labs,Helix Labs / Team 3,Senior Engineer
-p018,Willa Lindqvist,Helix Labs,Helix Labs / Team 3,Partner
-p019,Quentin Zhou,Helix Labs,Helix Labs / Team 3,Engineer
-p020,Vera Okafor,Helix Labs,Helix Labs / Team 3,Analyst
-p021,Hassan Moreau,Helix Labs,Helix Labs / Team 3,Senior Engineer
-p022,Jaspar Johansson,Helix Labs,Helix Labs / Team 3,Principal
-p023,Noa Lindqvist,Northwind Capital,Northwind Capital / Team 1,Partner
-p024,Mateo Wang,Northwind Capital,Northwind Capital / Team 1,Senior Engineer
-p025,Chen Vargas,Northwind Capital,Northwind Capital / Team 1,Engineering Manager
-p026,Yuki Johansson,Northwind Capital,Northwind Capital / Team 1,Senior Engineer
-p027,Omar Dutta,Northwind Capital,Northwind Capital / Team 1,Data Scientist
-p028,Rosa Okafor,Northwind Capital,Northwind Capital / Team 1,Principal
-p029,Xiu Flores,Northwind Capital,Northwind Capital / Team 1,Designer
-p030,Willa Gupta,Northwind Capital,Northwind Capital / Team 2,Principal
-p031,Rosa Wang,Northwind Capital,Northwind Capital / Team 2,Principal
-p032,Pascal Costa,Northwind Capital,Northwind Capital / Team 2,Partner
-p033,Orla Flores,Northwind Capital,Northwind Capital / Team 2,Analyst
-p034,Vera Hakim,Northwind Capital,Northwind Capital / Team 2,Staff Engineer
-p035,Darius Moreau,Northwind Capital,Northwind Capital / Team 2,Product Manager
-p036,Orla Wang,Northwind Capital,Northwind Capital / Team 2,Analyst
-p037,Omar Vargas,Northwind Capital,Northwind Capital / Team 3,Designer
-p038,Yuki Yamada,Northwind Capital,Northwind Capital / Team 3,Engineer
-p039,Omar Beck,Northwind Capital,Northwind Capital / Team 3,Designer
-p040,Zara Ito,Northwind Capital,Northwind Capital / Team 3,Senior Engineer
-p041,Nora Silva,Northwind Capital,Northwind Capital / Team 3,Founder
-p042,Ursula Gupta,Northwind Capital,Northwind Capital / Team 3,Principal
-p043,Finn Moreau,Ember Robotics,Ember Robotics / Team 1,Principal
-p044,Darius Erikson,Ember Robotics,Ember Robotics / Team 1,Product Manager
-p045,Ishaan Hakim,Ember Robotics,Ember Robotics / Team 1,Founder
-p046,Jaspar Rashid,Ember Robotics,Ember Robotics / Team 1,Product Manager
-p047,Wyatt Silva,Ember Robotics,Ember Robotics / Team 1,Data Scientist
-p048,Lucia Moreau,Ember Robotics,Ember Robotics / Team 1,Designer
-p049,Giulia Park,Ember Robotics,Ember Robotics / Team 2,Senior Engineer
-p050,Ximena Beck,Ember Robotics,Ember Robotics / Team 2,Senior Engineer
-p051,Julia Ueda,Ember Robotics,Ember Robotics / Team 2,Staff Engineer
-p052,Sana Nakamura,Ember Robotics,Ember Robotics / Team 2,Partner
-p053,Elena Moreau,Ember Robotics,Ember Robotics / Team 2,Data Scientist
-p054,Milan Okafor,Ember Robotics,Ember Robotics / Team 2,Analyst
-p055,Quentin Rashid,Ember Robotics,Ember Robotics / Team 3,Engineer
-p056,Sana Xu,Ember Robotics,Ember Robotics / Team 3,Senior Engineer
-p057,Sana Rashid,Ember Robotics,Ember Robotics / Team 3,Product Manager
-p058,Yuki Ueda,Ember Robotics,Ember Robotics / Team 3,Designer
-p059,Hassan Johansson,Ember Robotics,Ember Robotics / Team 3,Data Scientist
-p060,Kenji Okafor,Ember Robotics,Ember Robotics / Team 3,Engineer
-p061,Vera Xu,Paloma Health,Paloma Health / Team 1,Product Manager
-p062,Giulia Yamada,Paloma Health,Paloma Health / Team 1,Staff Engineer
-p063,Giulia Dutta,Paloma Health,Paloma Health / Team 1,Principal
-p064,Tariq Ueda,Paloma Health,Paloma Health / Team 1,Analyst
-p065,Milan Gupta,Paloma Health,Paloma Health / Team 1,Staff Engineer
-p066,Xiu Yamada,Paloma Health,Paloma Health / Team 1,Staff Engineer
-p067,Imani Yamada,Paloma Health,Paloma Health / Team 1,Analyst
-p068,Aaron Tanaka,Paloma Health,Paloma Health / Team 1,Designer
-p069,Finn Abara,Paloma Health,Paloma Health / Team 2,Senior Engineer
-p070,Xiu Zhou,Paloma Health,Paloma Health / Team 2,Product Manager
-p071,Priya Beck,Paloma Health,Paloma Health / Team 2,Engineering Manager
-p072,Kalani Costa,Paloma Health,Paloma Health / Team 2,Senior Engineer
-p073,Vera Park,Paloma Health,Paloma Health / Team 2,Senior Engineer
-p074,Ximena Rashid,Paloma Health,Paloma Health / Team 2,Staff Engineer
-p075,Ishaan Vargas,Paloma Health,Paloma Health / Team 2,Researcher
-p076,Jaspar Flores,Paloma Health,Paloma Health / Team 2,Product Manager
-p077,Hugo Tanaka,Brightline AI,Brightline AI / Team 1,Data Scientist
-p078,Nora Rashid,Brightline AI,Brightline AI / Team 1,Founder
-p079,Tomoko Gupta,Brightline AI,Brightline AI / Team 1,Founder
-p080,Tariq Moreau,Brightline AI,Brightline AI / Team 1,Principal
-p081,Pascal Lindqvist,Brightline AI,Brightline AI / Team 1,Researcher
-p082,Hugo Okafor,Brightline AI,Brightline AI / Team 1,Senior Engineer
-p083,Priya Hakim,Brightline AI,Brightline AI / Team 1,Senior Engineer
-p084,Viktor Abara,Brightline AI,Brightline AI / Team 2,Partner
-p085,Jaspar Hakim,Brightline AI,Brightline AI / Team 2,Partner
-p086,Omar Abara,Brightline AI,Brightline AI / Team 2,Senior Engineer
-p087,Uriel Ueda,Brightline AI,Brightline AI / Team 2,Engineer
-p088,Omar Costa,Brightline AI,Brightline AI / Team 2,Engineer
-p089,Viktor Costa,Brightline AI,Brightline AI / Team 2,Analyst
-p090,Priya Ito,Brightline AI,Brightline AI / Team 2,Principal
-p091,Finn Gupta,Solstice Partners,Solstice Partners / Team 1,Analyst
-p092,Ishaan Xu,Solstice Partners,Solstice Partners / Team 1,Partner
-p093,Kalani Park,Solstice Partners,Solstice Partners / Team 1,Engineering Manager
-p094,Esme Zhou,Solstice Partners,Solstice Partners / Team 1,Data Scientist
-p095,Mateo Dutta,Solstice Partners,Solstice Partners / Team 1,Senior Engineer
-p096,Rafael Nakamura,Solstice Partners,Solstice Partners / Team 2,Designer
-p097,Bruno Nakamura,Solstice Partners,Solstice Partners / Team 2,Researcher
-p098,Vera Beck,Solstice Partners,Solstice Partners / Team 2,Principal
-p099,Pascal Ueda,Solstice Partners,Solstice Partners / Team 2,Senior Engineer
-p100,Divya Moreau,Solstice Partners,Solstice Partners / Team 2,Founder
+id
+tw_orla_dutta
+fc_sana
+tw_nora_hakim
+tw_imani_nakamura
+tw_kenji_wang
+tw_gabriela_costa
+tw_chen_xu
+tw_soren_ueda
+tw_chen_vargas
+tw_gabriela_moreau
+tw_nora_vargas
+fc_kenji
+tw_orla_wang
+fc_omar
+tw_kalani_wang
+tw_darius_erikson
+fc_lucia
+tw_giulia_park
+tw_sana_nakamura
+fc_quentin
+tw_imani_yamada
+li_darius-abara
+li_lara-quinn
+tw_milan_gupta
+tw_hugo_abara
+tw_tariq_hakim
+fc_finn
+tw_jaspar_flores
+fc_imani
+tw_pascal_lindqvist
+tw_viktor_abara
+tw_orla_beck
+tw_priya_ito
+tw_kalani_silva
+tw_gabriela_vargas
+fc_sana2
+tw_gabriela_hakim
+fc_darius
+tw_gabriela_beck
+tw_ximena_hakim
+tw_divya_flores
+tw_darius_johansson
+tw_uriel_park
+fc_imani2
+tw_hugo_flores
+fc_elena
+tw_lucia_tanaka
+tw_ursula_ito
+tw_rafael_ueda
+li_darius-tanaka
+unknown_user_1
+unknown_user_2
+tw_pascal_quinn
+tw_ishaan_ito
+fc_milan
+li_finn-ito
+tw_rosa_beck
+tw_wyatt_okafor
+tw_tomoko_erikson
+tw_ishaan_beck
+tw_willa_gupta
+li_anika-tanaka
+tw_lara_nakamura
+fc_rafael
+tw_chen_park
+tw_omar_hakim
+tw_yuki_ito
+tw_viktor_abara2
+tw_quentin_beck
+tw_milan_quinn
+tw_bruno_abara
+tw_wyatt_vargas
+tw_noa_kapoor
+tw_rafael_nakamura
+tw_rafael_moreau
+tw_jaspar_abara
+tw_ursula_okafor
+tw_wyatt_flores
+tw_felix_yamada
+unknown_user_3
+tw_orla_silva
+tw_pascal_wang
+tw_bruno_hakim
+tw_priya_dutta
+unknown_user_4
+fc_giulia
+tw_esme_okafor
+tw_hugo_park
+tw_rosa_kapoor
+fc_tomoko
+tw_anika_beck
+li_tomoko-abara
+unknown_user_5
+tw_wyatt_xu
+tw_bruno_park
+unknown_user_6
+tw_lucia_silva
+tw_lara_beck
+li_yosef-ito
+tw_bella_xu

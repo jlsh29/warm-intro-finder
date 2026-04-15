@@ -16,11 +16,17 @@ that network, but you don't know them directly. The tool finds the
 shortest "warm introduction path" — the chain of mutual connections
 that gets you there.
 
-Example: you want to reach **Divya Moreau** at Solstice Partners.
-You don't know her. But you know **Orla Dutta** at Helix Labs, who
-knows **Bruno Beck**, who knows **Bruno Nakamura** at Solstice, who
-knows Divya. The tool finds that chain in milliseconds, even across
-hundreds of people.
+Example: you want to reach **tw_divya_moreau** on Twitter. You don't
+follow her directly. But you mutual-follow **tw_orla_dutta**, who
+mutual-follows **tw_bruno_beck**, who mutual-follows
+**tw_bruno_nakamura**, who mutual-follows Divya. The tool finds that
+chain in milliseconds, even across hundreds of people.
+
+> **Identity model**: every person in this system is identified by a
+> single platform-based username — `tw_*`, `fc_*`, `li_*`, `wal_*`,
+> or `unknown_user_*`. No real names, companies, or job titles are
+> stored or displayed. This keeps the graph privacy-preserving and
+> portable across data sources.
 
 ---
 
@@ -67,50 +73,64 @@ python -m pip install -r requirements.txt
 
 ## Step 3 — Look at the sample data
 
-The project ships with synthetic data: 100 people across 6 fictional
-companies, with 200 connections of varying strengths. Open these in
-any text editor or spreadsheet:
+The project ships with synthetic data: 100 people identified by
+username-based ids, with 200 connections of varying strengths. Open
+these in any text editor or spreadsheet:
 
-- `people.csv` — every person, their company, team, and role
+- `people.csv` — every person's canonical id (one column only)
 - `edges.csv` — every connection between two people, with a strength score (1–10)
+- `identities.csv` — one row per person mapping id → platform handle + DM flag
 
 ```
 people.csv
-id,name,company,team,role
-p001,Orla Dutta,Helix Labs,Helix Labs / Team 1,Engineer
-p002,Wyatt Ito,Helix Labs,Helix Labs / Team 1,Engineering Manager
+id
+tw_orla_dutta
+fc_sana
+li_omar-erikson
+unknown_user_1
 ...
 
 edges.csv
 from,to,strength
-p001,p005,10
-p001,p006,10
-p001,p008,8
+tw_orla_dutta,tw_giulia_tanaka,8
+tw_orla_dutta,tw_gabriela_vargas,10
+fc_sana,tw_wyatt_ito,6
+...
+
+identities.csv
+person_id,platform,handle,dm
+tw_orla_dutta,twitter,@orla_dutta,yes
+fc_sana,farcaster,sana,no
 ...
 ```
 
-You don't need to understand every row — these are the inputs. The
-tool reads them and figures out the rest.
+Each person's id prefix tells you which platform they came from:
+`tw_` = Twitter, `fc_` = Farcaster, `li_` = LinkedIn, `wal_` = wallet,
+`unknown_user_` = no platform evidence. You don't need to understand
+every row — the tool reads them and figures out the rest.
 
 ---
 
 ## Step 4 — Your first query
 
-Let's find a path from **Orla Dutta (p001)** to **Divya Moreau (p100)**.
+Pick two ids from `people.csv`. Let's go from **tw_orla_dutta** to
+**tw_bella_xu**:
 
 ```bash
-python warm_intro.py --people people.csv --edges edges.csv --entry p001 --target p100 --top-k 3
+python warm_intro.py --people people.csv --edges edges.csv --entry tw_orla_dutta --target tw_bella_xu --top-k 3
 ```
 
 You'll see something like:
 
 ```
-Best warm intro path (8 hop(s), total strength 67):
-  Orla Dutta (p001) -(8|direct)-> Giulia Tanaka (p008) -(10|direct)-> Gabriela Vargas (p004) -(10|direct)-> Wyatt Ito (p002) -(3|direct)-> Finn Gupta (p091) -(10|direct)-> Ishaan Xu (p092) -(6|direct)-> Rafael Nakamura (p096) -(10|direct)-> Bruno Nakamura (p097) -(10|direct)-> Divya Moreau (p100)
-Entry point used: Orla Dutta (p001)
+Best warm intro path (6 hop(s), total strength 40):
+  tw_orla_dutta -(2|direct)-> tw_ursula_okafor -(10|direct)-> tw_pascal_wang -(6|direct)-> unknown_user_4 -(10|direct)-> tw_esme_okafor -(3|direct)-> unknown_user_6 -(9|direct)-> tw_bella_xu
+Entry point used: tw_orla_dutta
 
-Why: Best warm path has 8 hop(s) with total strength 67 (cost 1.125), routed through entry point Orla Dutta (p001)...
+Why: Best warm path has 6 hop(s) with total strength 40 (cost 1.311), routed through entry point tw_orla_dutta...
 ```
+
+(Exact path depends on the seed and your query.)
 
 **What this means:**
 - **Hops** = how many handoffs the introduction chain has
@@ -122,27 +142,38 @@ Why: Best warm path has 8 hop(s) with total strength 67 (cost 1.125), routed thr
 
 ```bash
 # Add more entry points — the tool picks whichever gives the shortest path
-python warm_intro.py --people people.csv --edges edges.csv --entry p001,p020,p030 --target p100
+python warm_intro.py --people people.csv --edges edges.csv \
+    --entry tw_orla_dutta,fc_sana,li_omar-erikson --target tw_bella_xu
 
-# Show company / team / role for every person on the path
-python warm_intro.py --people people.csv --edges edges.csv --entry p001 --target p100 --explain
-
-# Look up by name instead of id (case-insensitive)
-python warm_intro.py --people people.csv --edges edges.csv --entry "Orla Dutta" --target "Divya Moreau"
+# Load identities so Phase B identity merging kicks in
+python warm_intro.py --people people.csv --edges edges.csv \
+    --identities identities.csv --entry tw_orla_dutta --target tw_bella_xu
 
 # Save the result as a JSON file for downstream tools
-python warm_intro.py --people people.csv --edges edges.csv --entry p001 --target p100 --output result.json
+python warm_intro.py --people people.csv --edges edges.csv \
+    --entry tw_orla_dutta --target tw_bella_xu --output result.json
 ```
+
+> **Name lookup:** `--entry "Orla Dutta"` only works if `people.csv`
+> contains a `name` column with that exact value. The default
+> generated data is id-only (no names), so always pass ids on the
+> synthetic dataset. Name lookup is useful when you bring your own
+> enriched CSV.
 
 ---
 
 ## Step 5 — Try the web UI
 
-If you'd rather click than type, run the Flask UI:
+If you'd rather click than type, run the Flask UI. Point it at
+`identities.csv` so each person card gets a clickable social link and
+DM badge:
 
 ```bash
-python app.py
+WARM_INTRO_IDENTITIES=identities.csv python app.py
 ```
+
+(On Windows cmd use `set WARM_INTRO_IDENTITIES=identities.csv` on a
+separate line before `python app.py`.)
 
 You'll see:
 
@@ -152,13 +183,18 @@ You'll see:
 
 Open **http://127.0.0.1:5000** in your browser. You'll see:
 
-1. A dropdown for **entry points** (people you already know — pick one or many)
-2. A dropdown for the **target** person
-3. A **Find warm path** button
+1. A dropdown for **entry points** (pick one or many)
+2. A dropdown for the **target**
+3. A **top-k** numeric input
+4. A **Find warm path** button
 
-Click submit and you'll get an interactive **path diagram**: nodes are
-people, arrows are connections, hover any arrow to see the reason. The
-best path is highlighted in blue; alternatives are dashed.
+Click submit and you'll get a horizontal chain of cards — one per
+person on the path, entry highlighted in blue, target in orange. When
+`identities.csv` is loaded, each card shows a clickable link to that
+person's priority platform (`twitter.com/...`,
+`linkedin.com/in/...`, `warpcast.com/...`, or `debank.com/profile/...`)
+with a green `DM ✓` or grey `DM ✗` badge next to it.
+`unknown_user_*` rows render plain with no link.
 
 To stop the server, press `Ctrl+C` in the terminal.
 
@@ -249,17 +285,20 @@ LinkedIn connections are **inherently mutual** (both parties accepted),
 so all rows produce undirected edges. The default tier is `mutual`
 (strength 8) — stronger evidence than a Twitter follow.
 
-The output `people.csv` includes **company and role** columns, so:
+Route through the LinkedIn-derived graph like any other:
 
 ```bash
 python warm_intro.py \
     --people li_data/people.csv \
     --edges  li_data/edges.csv \
     --identities li_data/identities.csv \
-    --entry li_alice-anderson --target li_charlie-chen --explain
+    --entry li_alice-anderson --target li_charlie-chen
 ```
 
-…shows full job-title context on every person in the path.
+Company and position columns from the source `Connections.csv` are
+read by the column auto-detector (so any export shape works) but are
+**not** preserved in the output — the system identifies every person
+solely by their `li_<slug>` username.
 
 ### Step 6c — Farcaster follows + channels
 
@@ -306,7 +345,7 @@ python warm_intro.py \
     --people fc_data/people.csv \
     --edges  fc_data/edges.csv \
     --identities fc_data/identities.csv \
-    --entry fc_1001 --target fc_1009 --explain
+    --entry fc_1001 --target fc_1009
 ```
 
 > **Where do real Farcaster CSVs come from?** Use the

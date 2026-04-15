@@ -297,10 +297,12 @@ def ingest(
 
     with open(people_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["id", "name"])
-        for fid, meta in sorted_people:
-            display = meta.get("name") or meta.get("username") or f"fid:{fid}"
-            w.writerow([person_id(fid), display])
+        # Id-only schema: fc_<fid> IS the identity. Username + display
+        # name are surfaced through identities.csv rather than baked
+        # into people.csv.
+        w.writerow(["id"])
+        for fid, _meta in sorted_people:
+            w.writerow([person_id(fid)])
 
     with open(edges_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)

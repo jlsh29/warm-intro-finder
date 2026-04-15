@@ -442,17 +442,15 @@ def main() -> int:
             f"tw_charlie count: {ids.count('tw_charlie')}",
         )
 
-        # Auto-detect picked up display names from BOTH conventions
-        names = {r["id"]: r["name"] for r in people_rows}
+        # people.csv after the username-transform is id-only; display
+        # names from source CSVs are intentionally dropped. The column-
+        # alias auto-detector still runs internally - if it failed on
+        # the snake_case Bob file we wouldn't have 7 people in the
+        # output (we'd have 4 from just Alice's CSV).
         check(
-            "auto-detect captured names from username/display_name",
-            names.get("tw_bob") == "Bob",
-            f"tw_bob name: {names.get('tw_bob')!r}",
-        )
-        check(
-            "auto-detect captured names from handle/name",
-            names.get("tw_frank") == "Frank",
-            f"tw_frank name: {names.get('tw_frank')!r}",
+            "people.csv has id-only schema (no name column)",
+            list(people_rows[0].keys()) == ["id"],
+            f"columns: {list(people_rows[0].keys())}",
         )
 
         # Identities map every person to their @handle
