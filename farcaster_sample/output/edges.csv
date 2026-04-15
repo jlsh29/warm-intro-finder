@@ -1,0 +1,6 @@
+from,to,strength,tier
+fc_1001,fc_1002,8,mutual
+fc_1001,fc_1003,8,mutual
+fc_1001,fc_1009,5,shared_org
+fc_1002,fc_1003,8,mutual
+fc_1002,fc_1006,5,shared_org
