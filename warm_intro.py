@@ -24,16 +24,24 @@ Entry/target values may be either an `id` from people.csv or a `name`
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import sys
 import heapq
 import math
-from collections import defaultdict, deque
+from collections import defaultdict
 from dataclasses import dataclass, field
 
-
-META_FIELDS = ("company", "team", "role")
+from core import (
+    CSVRepository,
+    GraphRepository,
+    META_FIELDS,
+    Person,
+    Relationship,
+    RepositoryPayload,
+    SocialAccount,
+    people_to_lookups,
+)
+from identity import IdentityCluster, IdentityResolver, ManualCSVResolver
 
 
 DEFAULT_STRENGTH = 1.0
@@ -47,6 +55,12 @@ class Graph:
     name_to_ids: dict[str, list[str]]
     id_to_meta: dict[str, dict[str, str]]
     edge_strength: dict[tuple[str, str], float] = field(default_factory=dict)
+    # Phase A additions — populated for repositories that emit them; the
+    # pathfinder ignores these today but downstream consumers (UI, JSON
+    # output) can surface them.
+    accounts: list[SocialAccount] = field(default_factory=list)
+    identity_clusters: list[IdentityCluster] = field(default_factory=list)
+    relationships: list[Relationship] = field(default_factory=list)
 
     def strength(self, a: str, b: str) -> float:
         key = (a, b) if a < b else (b, a)
@@ -72,94 +86,106 @@ class Graph:
         return f"{base} [{' / '.join(parts)}]" if parts else base
 
 
-def load_people(
-    path: str,
-) -> tuple[dict[str, str], dict[str, list[str]], dict[str, dict[str, str]]]:
-    id_to_name: dict[str, str] = {}
-    name_to_ids: dict[str, list[str]] = defaultdict(list)
-    id_to_meta: dict[str, dict[str, str]] = {}
-    with open(path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        if not reader.fieldnames or "id" not in reader.fieldnames:
-            raise ValueError(f"{path}: expected header with at least 'id' column")
-        has_name = "name" in reader.fieldnames
-        for row in reader:
-            pid = (row["id"] or "").strip()
-            if not pid:
-                continue
-            name = (row["name"].strip() if has_name and row["name"] else pid)
-            if pid in id_to_name:
-                raise ValueError(f"{path}: duplicate id {pid!r}")
-            id_to_name[pid] = name
-            name_to_ids[name.lower()].append(pid)
-            id_to_meta[pid] = {
-                k: (row[k].strip() if row.get(k) else "") for k in META_FIELDS
-            }
-    return id_to_name, dict(name_to_ids), id_to_meta
+def build_graph_from_repository(
+    repo: GraphRepository,
+    resolver: IdentityResolver | None = None,
+) -> Graph:
+    """Construct the runtime Graph from any GraphRepository.
+
+    This is the future-facing entry point: pass a TwitterRepository,
+    LinkedInRepository, MultiSourceRepository, etc. The pathfinder is
+    agnostic to where the data came from.
+    """
+    payload = repo.load()
+    return _build_graph_from_payload(payload, resolver)
 
 
-def load_edges(
-    path: str, known_ids: set[str]
-) -> tuple[dict[str, set[str]], dict[tuple[str, str], float]]:
+def build_graph(
+    people_path: str,
+    edges_path: str,
+    identities_path: str | None = None,
+    resolver: IdentityResolver | None = None,
+) -> Graph:
+    """Convenience: construct a Graph from CSV files.
+
+    Backwards compatible with the original two-arg signature. Pass
+    `identities_path` to also ingest social-account mappings via
+    CSVRepository, and `resolver` to bucket those accounts into
+    identity clusters (defaults to ManualCSVResolver, a no-op when no
+    accounts exist).
+    """
+    repo = CSVRepository(
+        people_path=people_path,
+        edges_path=edges_path,
+        identities_path=identities_path,
+    )
+    return build_graph_from_repository(repo, resolver or ManualCSVResolver())
+
+
+def _build_graph_from_payload(
+    payload: RepositoryPayload,
+    resolver: IdentityResolver | None,
+) -> Graph:
+    id_to_name, name_to_ids, id_to_meta = people_to_lookups(payload.people)
+    known_ids = set(id_to_name)
+
     adjacency: dict[str, set[str]] = defaultdict(set)
-    strengths: dict[tuple[str, str], float] = {}
+    edge_strength: dict[tuple[str, str], float] = {}
     unknown: set[str] = set()
-    with open(path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        if not reader.fieldnames or {"from", "to"} - set(reader.fieldnames):
-            raise ValueError(f"{path}: expected header with 'from' and 'to' columns")
-        has_strength = "strength" in reader.fieldnames
-        for row in reader:
-            a = (row["from"] or "").strip()
-            b = (row["to"] or "").strip()
-            if not a or not b or a == b:
-                continue
-            if a not in known_ids:
-                unknown.add(a)
-                continue
-            if b not in known_ids:
-                unknown.add(b)
-                continue
-            adjacency[a].add(b)
-            adjacency[b].add(a)
-            if has_strength:
-                raw = (row.get("strength") or "").strip()
-                try:
-                    s = float(raw) if raw else DEFAULT_STRENGTH
-                except ValueError:
-                    s = DEFAULT_STRENGTH
-                if s <= 0:
-                    s = DEFAULT_STRENGTH
-                key = (a, b) if a < b else (b, a)
-                # If the edge appears twice with different strengths, keep the stronger.
-                strengths[key] = max(strengths.get(key, s), s)
+    saw_explicit_strength = False
+    for rel in payload.relationships:
+        # Phase A: only person-person edges feed routing. Future phases
+        # may translate person-account / account-account into routable
+        # edges; for now we just stash them on the Graph for output.
+        if rel.kind != "person-person":
+            continue
+        a, b = rel.from_id, rel.to_id
+        if a not in known_ids:
+            unknown.add(a)
+            continue
+        if b not in known_ids:
+            unknown.add(b)
+            continue
+        if a == b:
+            continue
+        adjacency[a].add(b)
+        adjacency[b].add(a)
+        key = (a, b) if a < b else (b, a)
+        s = rel.strength if rel.strength and rel.strength > 0 else DEFAULT_STRENGTH
+        # If the edge appears twice with different strengths, keep the stronger.
+        edge_strength[key] = max(edge_strength.get(key, s), s)
+        if rel.strength and rel.strength != DEFAULT_STRENGTH:
+            saw_explicit_strength = True
+
     if unknown:
         sample = ", ".join(sorted(unknown)[:5])
         print(
-            f"warning: {len(unknown)} edge endpoint(s) not found in people.csv "
-            f"(skipped). Examples: {sample}",
+            f"warning: {len(unknown)} edge endpoint(s) not found in people "
+            f"data (skipped). Examples: {sample}",
             file=sys.stderr,
         )
-    if not has_strength:
+    if not saw_explicit_strength and adjacency:
         print(
-            "warning: edges.csv has no 'strength' column; all edges treated "
-            "with strength=1.0 (unweighted mode).",
+            "warning: no 'strength' column / values in edges; all edges "
+            "treated with strength=1.0 (unweighted mode).",
             file=sys.stderr,
         )
     for pid in known_ids:
         adjacency.setdefault(pid, set())
-    return dict(adjacency), strengths
 
+    clusters: list[IdentityCluster] = []
+    if resolver is not None:
+        clusters = list(resolver.resolve(payload.people, payload.accounts))
 
-def build_graph(people_path: str, edges_path: str) -> Graph:
-    id_to_name, name_to_ids, id_to_meta = load_people(people_path)
-    adjacency, edge_strength = load_edges(edges_path, set(id_to_name))
     return Graph(
-        adjacency=adjacency,
+        adjacency=dict(adjacency),
         id_to_name=id_to_name,
         name_to_ids=name_to_ids,
         id_to_meta=id_to_meta,
         edge_strength=edge_strength,
+        accounts=list(payload.accounts),
+        identity_clusters=clusters,
+        relationships=list(payload.relationships),
     )
 
 
