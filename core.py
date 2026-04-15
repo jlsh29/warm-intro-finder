@@ -158,6 +158,11 @@ def apply_merges(
         return payload
 
     def canon(pid: str) -> str:
+        # Walk the merge chain to its fixed point. The `seen` guard
+        # protects against pathological inputs where two MergeProposals
+        # accidentally point at each other (e.g. {A->B, B->A}); without
+        # it we'd loop forever. Normal upstream callers (resolvers)
+        # never produce cycles, so this guard is defensive only.
         seen: set[str] = set()
         while pid in canonical and pid not in seen:
             seen.add(pid)
@@ -256,9 +261,23 @@ def apply_merges(
 
 
 class GraphRepository(Protocol):
-    """Anything that can produce the entity tuple."""
+    """Anything that can produce the entity tuple.
 
-    def load(self) -> RepositoryPayload: ...
+    Implementors: a TwitterRepository pulling from the Twitter API, a
+    LinkedInRepository reading exported CSVs, a Neo4jRepository querying
+    a graph DB - all become interchangeable as long as `load()` returns
+    a populated `RepositoryPayload`.
+    """
+
+    def load(self) -> RepositoryPayload:
+        """Return the unified entity payload.
+
+        Must be safe to call multiple times on the same instance.
+        Implementations should raise `ValueError` for malformed input
+        and `FileNotFoundError` for missing files - the build pipeline
+        treats both as user errors and surfaces them at the CLI.
+        """
+        ...
 
 
 # --- CSV implementation -----------------------------------------------
@@ -296,11 +315,18 @@ class CSVRepository:
         edges_path: str,
         identities_path: str | None = None,
     ) -> None:
+        """Hold paths; defer all I/O until `.load()` is called.
+
+        Construction is cheap and side-effect free so the repository can
+        be configured eagerly (e.g. at module load) and only opens files
+        when something actually asks for the payload.
+        """
         self.people_path = people_path
         self.edges_path = edges_path
         self.identities_path = identities_path
 
     def load(self) -> RepositoryPayload:
+        """Read all CSVs and return the populated payload."""
         people = self._load_people()
         accounts, claims = self._load_accounts(people)
         relationships = self._load_relationships(people)
@@ -312,6 +338,7 @@ class CSVRepository:
         )
 
     def _load_people(self) -> list[Person]:
+        """Parse `people.csv` into Person entities. Raises on duplicate id."""
         people: list[Person] = []
         seen: set[str] = set()
         with open(self.people_path, newline="", encoding="utf-8") as f:
@@ -340,6 +367,15 @@ class CSVRepository:
     def _load_accounts(
         self, people: list[Person]
     ) -> tuple[list[SocialAccount], list[tuple[str, str]]]:
+        """Parse `identities.csv` if provided.
+
+        Returns `(accounts, claims)`:
+        - `accounts` is one SocialAccount per unique `platform:handle` id,
+          attached to the *first* person that claimed it.
+        - `claims` is the raw `(account_id, person_id)` list including
+          duplicates - kept so the identity layer can detect cross-person
+          overlap and propose merges.
+        """
         if not self.identities_path:
             return [], []
         by_id = {p.id: p for p in people}
@@ -380,6 +416,13 @@ class CSVRepository:
         return list(accounts.values()), claims
 
     def _load_relationships(self, people: list[Person]) -> list[Relationship]:
+        """Parse `edges.csv` into person-person Relationships.
+
+        Edges with unknown endpoints, self-loops, or duplicates are
+        silently dropped (warnings come from the build pipeline, not
+        here). Strength precedence: explicit `strength` column value,
+        then tier-default lookup in TIER_STRENGTH, then 1.0 fallback.
+        """
         known = {p.id for p in people}
         rels: list[Relationship] = []
         with open(self.edges_path, newline="", encoding="utf-8") as f:

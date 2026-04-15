@@ -82,6 +82,7 @@ TIER_STRENGTH: dict[str, int] = {
 
 
 def detect_col(headers: list[str], candidates: tuple[str, ...]) -> str | None:
+    """Return the first header matching any candidate (case-insensitive)."""
     headers_lower = {h.lower().strip(): h for h in headers}
     for cand in candidates:
         if cand in headers_lower:
@@ -90,6 +91,7 @@ def detect_col(headers: list[str], candidates: tuple[str, ...]) -> str | None:
 
 
 def normalize_handle(s: str) -> str:
+    """Strip whitespace + leading `@`, lowercase. Empty input returns ''."""
     s = (s or "").strip()
     if s.startswith("@"):
         s = s[1:]
@@ -97,6 +99,7 @@ def normalize_handle(s: str) -> str:
 
 
 def person_id(handle: str) -> str:
+    """Namespace a Twitter handle into a person id (e.g. `tw_alice`)."""
     return f"tw_{handle}"
 
 
@@ -135,6 +138,13 @@ def ingest(
     edge_tier: str,
     one_way_tier: str = "platform_similarity",
 ) -> dict:
+    """Convert per-seed Twitter follow CSVs into engine-format CSVs.
+
+    For each seed user, the intersection of their following and
+    followers files defines the mutual edges. Cross-seed dedup ensures
+    every handle appears once in `people.csv`. Output written to
+    `out_dir`; returns a dict with the three file paths plus counts.
+    """
     if edge_tier not in TIER_STRENGTH:
         raise ValueError(f"unknown tier {edge_tier!r}")
     if one_way_tier not in TIER_STRENGTH:
@@ -239,6 +249,7 @@ def ingest(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. Parse argv, call ingest(), print result. Returns exit code."""
     parser = argparse.ArgumentParser(
         description="Convert Twitter follower/following CSVs into warm_intro CSVs.",
         epilog=(

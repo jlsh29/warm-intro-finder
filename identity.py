@@ -69,10 +69,23 @@ class IdentityResolver(Protocol):
     """Anything that can group accounts into per-person clusters and
     optionally propose person-level merges from an ingestion payload."""
 
-    def resolve(self, payload: RepositoryPayload) -> ResolutionResult: ...
+    def resolve(self, payload: RepositoryPayload) -> ResolutionResult:
+        """Inspect the payload and return clusters + merge proposals.
+
+        Implementations should be pure functions of `payload` (no I/O,
+        no global state) so the build pipeline can call resolve twice -
+        once to compute merges, then again on the merged payload to
+        rebuild clusters from the post-merge data.
+        """
+        ...
 
 
 def _bucket_accounts(accounts: Iterable[SocialAccount]) -> list[IdentityCluster]:
+    """Group accounts by their `owner_person_id` into one cluster per person.
+
+    Accounts with no owner are skipped - they belong to no person yet
+    and have no place in a cluster.
+    """
     clusters: dict[str, IdentityCluster] = {}
     for acc in accounts:
         if acc.owner_person_id is None:
@@ -92,9 +105,13 @@ class ManualCSVResolver:
     """
 
     def __init__(self, identities_path: str | None = None) -> None:
+        # `identities_path` is unused here - kept on the signature for
+        # parity with future resolvers that may want to read additional
+        # mapping rules at construction time.
         self.identities_path = identities_path
 
     def resolve(self, payload: RepositoryPayload) -> ResolutionResult:
+        """Bucket accounts by their pre-assigned owner; never propose merges."""
         return ResolutionResult(clusters=_bucket_accounts(payload.accounts))
 
 
@@ -112,41 +129,62 @@ class SharedAccountResolver:
     """
 
     def resolve(self, payload: RepositoryPayload) -> ResolutionResult:
-        # Union-find over person ids, joined whenever they share an account.
+        """Find shared-account components via union-find; emit one merge per component.
+
+        Algorithm:
+        1. Group payload.account_claims by account_id - any account with
+           >1 owner is evidence those owners are the same person.
+        2. Union-find over person ids, joined for every shared account.
+        3. Each connected component with >=2 members becomes one
+           MergeProposal; the smallest id wins as canonical so the
+           output is deterministic across runs.
+        """
+        # Group every claim by account so we can spot owners that overlap.
         owners_by_account: dict[str, set[str]] = defaultdict(set)
         for acc_id, pid in payload.account_claims:
             owners_by_account[acc_id].add(pid)
 
+        # Standard union-find with path compression. `parent` maps each
+        # person id to its parent in the component tree; the root of
+        # the tree is the canonical id for that component.
         parent: dict[str, str] = {}
 
         def find(x: str) -> str:
+            """Return the root of x's component, compressing the path along the way."""
             while parent.get(x, x) != x:
+                # Path compression: short-circuit through the grandparent
+                # so future find()s are O(1) amortized.
                 parent[x] = parent.get(parent[x], parent[x])
                 x = parent[x]
             return x
 
         def union(a: str, b: str) -> None:
+            """Join a and b into the same component; smallest-id wins as root."""
             ra, rb = find(a), find(b)
             if ra == rb:
                 return
-            # Smallest id wins as canonical
             if ra < rb:
                 parent[rb] = ra
             else:
                 parent[ra] = rb
 
+        # Track which accounts caused which merges so we can build a
+        # human-readable reason string per proposal.
         merge_evidence: dict[frozenset[str], list[str]] = defaultdict(list)
         for acc_id, owners in owners_by_account.items():
             if len(owners) < 2:
-                continue
+                continue  # uncontested ownership - no merge signal
             owners_list = sorted(owners)
             for o in owners_list:
                 parent.setdefault(o, o)
+            # Union every co-owner with the first; transitively merges
+            # any larger component (e.g. 3-way ownership of one account).
             for o in owners_list[1:]:
                 union(owners_list[0], o)
             merge_evidence[frozenset(owners_list)].append(acc_id)
 
-        # Materialize merge proposals from union-find components
+        # Bucket every known person id by its current root id - this
+        # gives us the connected components we need to emit as merges.
         components: dict[str, set[str]] = defaultdict(set)
         for pid in parent:
             components[find(pid)].add(pid)
@@ -155,8 +193,9 @@ class SharedAccountResolver:
         for canonical, members in components.items():
             others = sorted(members - {canonical})
             if not others:
-                continue
-            # Build a reason string from the evidence
+                continue  # singleton component - nothing to merge
+            # Aggregate the evidence: every shared account whose owner
+            # set overlaps this component contributes to the reason.
             shared_accs: set[str] = set()
             for owners_set, acc_ids in merge_evidence.items():
                 if owners_set & members:
@@ -191,9 +230,12 @@ class HeuristicResolver:
     """
 
     def __init__(self) -> None:
+        # Compose with SharedAccountResolver so we get its deterministic
+        # merges for free; future heuristic passes will run *after* this.
         self._inner = SharedAccountResolver()
 
     def resolve(self, payload: RepositoryPayload) -> ResolutionResult:
+        """Today: identical to SharedAccountResolver. Future: + heuristic merges."""
         return self._inner.resolve(payload)
 
 

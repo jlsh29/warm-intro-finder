@@ -94,6 +94,7 @@ TIER_STRENGTH: dict[str, int] = {
 
 
 def detect_col(headers: list[str], candidates: tuple[str, ...]) -> str | None:
+    """Find a header matching any candidate, treating space and underscore as equivalent."""
     norm = {h.lower().strip().replace(" ", "_"): h for h in headers}
     for cand in candidates:
         if cand in norm:
@@ -117,6 +118,7 @@ def normalize_wallet(s: str) -> str:
 
 
 def short_addr(addr: str) -> str:
+    """Return a `0xabcd...1234`-style truncation for display. Pass through if already short."""
     if len(addr) > 14:
         return f"{addr[:6]}...{addr[-4:]}"
     return addr
@@ -205,6 +207,16 @@ def ingest(
     mutual_threshold: int = 3,
     forced_tier: str | None = None,
 ) -> dict:
+    """Convert wallet interactions CSV (+ optional mapping) into engine CSVs.
+
+    Edges are derived per *person pair*, not per wallet pair: when one
+    person owns multiple wallets, all interactions to/from any of them
+    are summed before tier classification. Combined count >=
+    `mutual_threshold` -> mutual tier (8); else platform_similarity
+    (2). `forced_tier` overrides this rule entirely. Unmapped wallets
+    become anonymous `wal_<address>` persons so the data isn't lost.
+    Returns the three output paths plus counts.
+    """
     if forced_tier is not None and forced_tier not in TIER_STRENGTH:
         raise ValueError(f"unknown tier {forced_tier!r}")
 
@@ -220,16 +232,22 @@ def ingest(
             return wallet_to_person[wallet]
         return f"wal_{wallet}"
 
-    # Aggregate undirected counts per person pair
+    # Aggregate counts per *person pair* (not per wallet pair). This is
+    # the key move: one person may own multiple wallets, so a strong
+    # tie shows up as N edges in the raw data that we collapse into
+    # one person-level pair count. Without this, multi-wallet owners
+    # would always look like weak ties because no single wallet pair
+    # crosses the mutual threshold.
     pair_count: dict[tuple[str, str], int] = defaultdict(int)
-    # Track every wallet ever seen so the identities + people lists are complete
+    # Track every wallet seen anywhere - including in the mapping but
+    # not in any interaction - so identities.csv is exhaustive.
     seen_wallets: set[str] = set(wallet_to_person)
     for a, b, count, _t in interactions:
         seen_wallets.add(a)
         seen_wallets.add(b)
         pa, pb = person_for(a), person_for(b)
         if pa == pb:
-            continue  # self-interaction across own wallets
+            continue  # interactions among one person's own wallets aren't a tie
         key = tuple(sorted([pa, pb]))
         pair_count[key] += count
 
@@ -298,6 +316,7 @@ def ingest(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. Parse argv, call ingest(), print result. Returns exit code."""
     parser = argparse.ArgumentParser(
         description="Convert wallet-interaction CSVs into warm_intro CSVs.",
         epilog=(

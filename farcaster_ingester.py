@@ -84,6 +84,7 @@ TIER_STRENGTH: dict[str, int] = {
 
 
 def detect_col(headers: list[str], candidates: tuple[str, ...]) -> str | None:
+    """Find a header matching any candidate, treating space and underscore as equivalent."""
     norm = {h.lower().strip().replace(" ", "_"): h for h in headers}
     for cand in candidates:
         if cand in norm:
@@ -102,11 +103,13 @@ def normalize_fid(s: str) -> str:
 
 
 def normalize_username(s: str) -> str:
+    """Strip whitespace + leading `@`, lowercase. Empty input returns ''."""
     s = (s or "").strip().lstrip("@")
     return s.lower() if s else ""
 
 
 def person_id(fid: str) -> str:
+    """Namespace a Farcaster numeric FID into a person id (e.g. `fc_1001`)."""
     return f"fc_{fid}"
 
 
@@ -175,6 +178,14 @@ def ingest(
     one_way_tier: str = "platform_similarity",
     channels_path: str | None = None,
 ) -> dict:
+    """Convert per-seed Farcaster follow CSVs (+ optional channels) into engine CSVs.
+
+    Mutual-follow logic mirrors the Twitter ingester. If `channels_path`
+    is given, channel co-membership additionally produces shared_org
+    edges (strength 5) between every pair of channel members; mutual
+    follow evidence wins on dedup so a stronger edge is never downgraded.
+    Returns the three output paths plus counts.
+    """
     if edge_tier not in TIER_STRENGTH:
         raise ValueError(f"unknown tier {edge_tier!r}")
     if one_way_tier not in TIER_STRENGTH:
@@ -314,6 +325,7 @@ def ingest(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. Parse argv, call ingest(), print result. Returns exit code."""
     parser = argparse.ArgumentParser(
         description="Convert Farcaster follower/following + channel CSVs into warm_intro CSVs.",
         epilog=(

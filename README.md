@@ -302,71 +302,290 @@ relationship intensity.
 
 ### `run_stress_tests.py` — assertion-based test suite
 
-Exercises 12 scenarios against fixtures `test_people.csv` /
-`test_edges.csv`: disconnected components, triangles, six-cycles,
-self-loops, duplicate edges, ambiguous names, mixed reachable/unreachable
-entries, `top_k` capping, entry-equals-target, and hub-routing with many
-shortest paths. Exits non-zero on any failure.
+Exercises **16 scenarios** against built-in fixtures and synthetic
+tempdir CSVs: disconnected components, triangles, six-cycles, self-loops,
+duplicate edges, ambiguous names, mixed reachable/unreachable entries,
+`top_k` capping, entry-equals-target, hub-routing, identity merging
+(Phase B), tiered scoring + shared-org derivation (Phase C), structured
+JSON output (Phase D), and the Twitter ingester end-to-end (case 16).
+Exits non-zero on any failure.
 
 ```bash
 python run_stress_tests.py
 ```
 
-The fixture has no `strength` column, so every edge defaults to 1.0 —
-Dijkstra reduces to BFS and all 12 cases continue to pass after the
-weighted-edge upgrade.
+The original 12 fixture cases use no `strength` column, so every edge
+defaults to 1.0 — Dijkstra reduces to BFS and the original cases continue
+to pass after every later upgrade.
 
 ---
 
-## Using with real data
+## Platform adapters
 
-The tool is format-agnostic as long as your data collapses into two CSVs.
+Four standalone CLI converters turn real-world platform data into the
+engine's three-CSV format (`people.csv`, `edges.csv`, `identities.csv`).
+All four follow the same shape:
 
-### LinkedIn / professional network exports
-- Person id: LinkedIn URL slug or profile URL.
-- `edges.csv`: one row per accepted connection.
-- Connections are mutual, so they're already undirected — no conversion.
-- Strength signal options: years connected, profile-similarity, or shared
-  endorsements. Map to integer `[1, 10]`.
+- **No network calls** — they read only the files you point at
+- **No fabricated edges** — every emitted edge corresponds to evidence in the input
+- **Namespaced person ids** — `tw_*` (Twitter), `li_*` (LinkedIn), `fc_*` (Farcaster), `wal_*` (wallet) — so outputs from multiple platforms can be combined without id collisions
+- **Same output contract** — the three CSVs drop straight into `warm_intro.py` with no further processing
 
-### Twitter / X followers
-- Follows are **directed**, but warm intros need mutual acquaintance.
-  Keep only edges where both `A→B` and `B→A` exist; emit each as one
-  undirected row:
-  ```python
-  mutual = {tuple(sorted((a, b))) for a, b in follows if (b, a) in follows}
-  ```
-- Strength signal options: number of replies/quote-tweets, follow
-  duration, common follower count.
+Pick the adapter for the platform whose data you have. Run it. Feed the
+output to `warm_intro.py`. Or combine outputs from multiple adapters
+into one merged dataset and let the engine's identity layer collapse
+cross-platform duplicates (see [Cross-platform identity merging](#cross-platform-identity-merging) below).
 
-### CRM / email / Slack data
-- Person id: email address.
-- Edge signal options: at least N messages exchanged, both attended the
-  same meeting, or both on the same thread.
-- Strength: log of message volume, capped at 10. (Dijkstra rewards strong
-  ties, but extreme outliers make every other edge look weak — log scale
-  prevents one prolific Slacker from dominating every path.)
+### `twitter_ingester.py` — Twitter / X follower exports
 
-### Merging multiple sources
-Run your extractors independently, concatenate the `edges.csv` files,
-and let the tool's dedup handle overlap. Keep `id` canonical across
-sources (always email address, or always LinkedIn slug) — mismatched
-identifiers will fragment the graph.
+Twitter follows are *directed*. Warm intros need mutual acquaintance, so
+the ingester only emits an edge when the follow is bidirectional.
 
-When the same edge appears in two sources with different strengths, the
-loader keeps the **higher** of the two — assuming a stronger signal in
-either source represents a genuine tie.
+**Input** — one `following.csv` and one `followers.csv` per seed user.
+Auto-detected handle column from `username | handle | screen_name |
+user_screen_name | twitter_handle`; auto-detected display-name column
+from `display_name | name | full_name | user_name`. Other columns
+ignored. `@`-prefixes stripped, handles lowercased.
 
-### Data hygiene tips
-- **Normalize before load.** Lowercase emails, strip handle whitespace.
-- **One edge row per relationship.** A+B and B+A is fine — the tool
-  dedupes — but avoid emitting strengths from multiple weak signals as
-  separate rows; aggregate first, then emit one `strength` value.
+```csv
+username,display_name
+@bob,Bob Builder
+@charlie,Charlie Chen
+```
+
+**Sample command:**
+```bash
+python twitter_ingester.py \
+    --seed @alice \
+    --following alice_following.csv --followers alice_followers.csv \
+    --seed @bob \
+    --following bob_following.csv --followers bob_followers.csv \
+    --out-dir ./tw_data \
+    --tier mutual
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--seed` | required | Twitter handle of the export owner. Repeatable. |
+| `--following` / `--followers` | required | One pair per `--seed`, in the same order. |
+| `--out-dir` | `.` | Where the three output CSVs are written. |
+| `--include-one-way` | off | Also emit one-way follows at `platform_similarity` (mutual evidence still wins on dedup). |
+| `--tier` | `platform_similarity` | Tier label for mutual edges. A bare follow is weak signal; default is conservative. Use `mutual` if you trust your follow graph. |
+
+**Person ids:** `tw_<lowercase_handle>` (e.g. `tw_alice`).
+**Output:** `people.csv` (id, name), `edges.csv` (from, to, strength, tier), `identities.csv` (person_id, twitter, @handle).
+
+### `linkedin_ingester.py` — LinkedIn Connections.csv exports
+
+LinkedIn connections are *inherently mutual* (both parties accepted), so
+no follower/following split. One `Connections.csv` per export owner.
+
+**Input** — LinkedIn's official export columns (`First Name, Last Name,
+URL, Email Address, Company, Position, Connected On`) or the snake_case
+equivalents from third-party tools. Auto-detected:
+
+| field | aliases |
+|---|---|
+| URL | `url`, `profile_url`, `linkedin_url`, `profile` |
+| first | `first_name`, `firstname`, `first` |
+| last | `last_name`, `lastname`, `last` |
+| company | `company`, `company_name`, `current_company`, `organization` |
+| position | `position`, `title`, `job_title`, `role` |
+
+Email Address is intentionally ignored (PII not needed for routing).
+
+```csv
+First Name,Last Name,URL,Email Address,Company,Position,Connected On
+Charlie,Chen,https://www.linkedin.com/in/charlie-chen/,,Helix Labs,Senior Engineer,12 Mar 2024
+```
+
+**Sample command:**
+```bash
+python linkedin_ingester.py \
+    --owner-name "Alice Anderson" \
+    --owner-url  "https://www.linkedin.com/in/alice-anderson/" \
+    --connections alice_connections.csv \
+    --owner-name "Bob Builder" \
+    --owner-url  "https://www.linkedin.com/in/bob-builder/" \
+    --connections bob_connections.csv \
+    --out-dir ./li_data
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--owner-name` / `--owner-url` / `--connections` | required | One triple per export owner. |
+| `--out-dir` | `.` | |
+| `--tier` | `mutual` | A LinkedIn connection is bidirectional acceptance — stronger evidence than a Twitter follow. |
+
+**Person ids:** `li_<slug>` derived from the LinkedIn URL `/in/<slug>` path. Bare slugs accepted as fallback.
+**Output:** `people.csv` (id, name, **company, role**), `edges.csv`, `identities.csv` (person_id, linkedin, full LinkedIn URL).
+
+LinkedIn data uniquely populates `company` and `role` columns in
+`people.csv`, so the engine's `--explain` flag shows full org context
+on every node.
+
+### `farcaster_ingester.py` — Farcaster follows + channels
+
+Like Twitter — follows are directed and only mutuals are emitted by
+default — but with two key differences:
+
+- Person ids use the **immutable numeric FID**, not the mutable @username
+- Optional `--channels` CSV adds `shared_org`-tier edges from channel co-membership
+
+**Input** — per-seed following / followers files plus an optional
+channels file.
+
+| field | aliases |
+|---|---|
+| FID | `fid`, `farcaster_id`, `user_fid`, `id` |
+| username | `username`, `handle`, `fname` |
+| display name | `display_name`, `name`, `display` |
+| channel | `channel`, `channel_name`, `parent_url` |
+
+```csv
+fid,username,display_name
+1002,bob,Bob Builder
+1003,charlie,Charlie Chen
+```
+
+```csv
+fid,channel
+1001,/dev
+1002,/dev
+1009,/art
+```
+
+**Sample command:**
+```bash
+python farcaster_ingester.py \
+    --seed 1001 \
+    --following alice_following.csv --followers alice_followers.csv \
+    --seed 1002 \
+    --following bob_following.csv   --followers bob_followers.csv \
+    --channels channels.csv \
+    --out-dir ./fc_data
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--seed` | required | Numeric FID. Repeatable. |
+| `--following` / `--followers` | required | One pair per `--seed`. |
+| `--channels` | none | Optional `(fid, channel)` CSV. Each channel becomes a `shared_org` clique. Mutual evidence wins on dedup. |
+| `--out-dir` | `.` | |
+| `--include-one-way` | off | |
+| `--tier` | `mutual` | Farcaster follows are more deliberate than Twitter's. |
+
+**Person ids:** `fc_<numeric_fid>` (e.g. `fc_1001`). Username preserved in identities.csv as `@username`.
+**Output:** `people.csv`, `edges.csv`, `identities.csv` (person_id, farcaster, @handle).
+
+### `wallet_ingester.py` — blockchain wallet interactions
+
+The most flexible adapter. Real-world identity behind a wallet is
+unknown by default, so this ingester takes an explicit
+**wallet → person mapping** and falls back to per-wallet anonymous
+persons (`wal_<address>`) for unmapped wallets.
+
+**Inputs** — one required interactions CSV plus one optional mapping CSV.
+
+| field (interactions) | aliases |
+|---|---|
+| from | `from`, `from_wallet`, `from_address`, `sender`, `source` |
+| to | `to`, `to_wallet`, `to_address`, `receiver`, `recipient`, `target` |
+| count | `count`, `tx_count`, `interaction_count`, `n` |
+| type | `type`, `interaction_type`, `tx_type` (optional, ignored for routing) |
+
+```csv
+from_wallet,to_wallet,count,type
+0x1111...,0x3333...,5,transfer
+0x2222...,0x3333...,2,transfer
+```
+
+```csv
+person_id,wallet,person_name
+alice,0x1111...,Alice Anderson
+alice,0x2222...,Alice Anderson
+bob,0x3333...,Bob Builder
+```
+
+**Sample command:**
+```bash
+python wallet_ingester.py \
+    --interactions interactions.csv \
+    --mapping mapping.csv \
+    --out-dir ./wal_data \
+    --mutual-threshold 3
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--interactions` | required | Pre-aggregated wallet pairs (or use `count=1` per row for raw events). |
+| `--mapping` | none | Optional `(person_id, wallet, [person_name])` CSV. Multiple wallets per person allowed (cross-wallet ownership). |
+| `--out-dir` | `.` | |
+| `--mutual-threshold` | `3` | Combined bidirectional count `≥ N` → `mutual` (8); else `platform_similarity` (2). |
+| `--tier` | none | Override to force a uniform tier. |
+
+**Person ids:** mapped wallets use the mapping's `person_id` as-is (no prefix); unmapped wallets become `wal_<lowercase_address>` with display name `0xabcd...1234`.
+
+**Cross-wallet aggregation:** if Alice owns 3 wallets, every interaction between any of them and Bob is summed into one `(alice, bob)` count before tier classification. EVM addresses are lowercased; other formats pass through unchanged.
+
+**Output:** `people.csv`, `edges.csv`, `identities.csv` (person_id, wallet, full address — every wallet appears, including those owned by mapped persons).
+
+### Plugging adapter output into the engine
+
+Every adapter writes the same three files. Feed them to `warm_intro.py`
+exactly like the synthetic dataset:
+
+```bash
+python warm_intro.py \
+    --people    fc_data/people.csv \
+    --edges     fc_data/edges.csv \
+    --identities fc_data/identities.csv \
+    --entry fc_1001 --target fc_1003 --explain
+```
+
+The `--identities` flag is what triggers Phase B identity merging — when
+two persons share a platform handle, the engine collapses them onto one
+canonical person before routing.
+
+### Cross-platform identity merging
+
+Each adapter uses its own person-id namespace prefix (`tw_*`, `li_*`,
+`fc_*`, `wal_*`) so outputs can be combined without id collisions:
+
+1. Run each adapter independently to its own out-dir
+2. Concatenate the three CSV families:
+   ```bash
+   tail -n +2 -q tw_data/people.csv li_data/people.csv fc_data/people.csv wal_data/people.csv \
+       | sort -u > merged/people.csv  # add header back manually
+   # similar for edges.csv and identities.csv
+   ```
+3. Add a manual identities row whenever you have evidence that two
+   namespaced ids are the same human:
+   ```csv
+   person_id,platform,handle
+   tw_alice,twitter,@alice_canonical
+   li_alice-anderson,twitter,@alice_canonical
+   ```
+   The `SharedAccountResolver` will merge `tw_alice` and `li_alice-anderson`
+   on graph load because they both claim the same `twitter:@alice_canonical`
+   account. Same trick works with wallet addresses (`wallet:0xabc...`),
+   ENS names, or any other platform identifier.
+
+The merged graph then routes through the unified social fabric — your
+LinkedIn-known coworker can introduce you to your Farcaster mutual via
+their shared wallet activity, all in one query.
+
+### Generic data hygiene tips
+- **Normalize before load.** Adapters lowercase EVM addresses and strip
+  `@` from handles, but anything you write directly to `people.csv`
+  needs the same treatment.
+- **One edge row per relationship.** Both directions of the same edge
+  is fine — the engine dedupes (max strength wins) — but avoid emitting
+  partial-strength rows that should be aggregated upstream.
 - **Prune dangling edges.** Edges referencing people not in `people.csv`
-  are silently skipped with a stderr warning. Fine for exploration;
-  clean them up for production.
-- **Privacy.** The tool runs entirely locally and reads only the files
-  you point it at. No network calls.
+  are silently skipped with a stderr warning. Adapters do this for you.
+- **Privacy.** Everything runs locally. No adapter contacts an API,
+  indexer, or platform.
 
 ### Scale
 In-memory adjacency list. Tested up to the low thousands of nodes with
@@ -380,14 +599,27 @@ graph-tool, or a graph database.
 ```
 warm_intro/
 ├── warm_intro.py          # the CLI (Dijkstra-based pathfinder)
+├── core.py                # domain model + GraphRepository / CSVRepository
+├── identity.py            # IdentityResolver + ManualCSV / SharedAccount / Heuristic
 ├── app.py                 # Flask web UI
 ├── templates/
-│   └── index.html         # UI template
-├── generate_dataset.py    # synthetic data generator (with strengths)
+│   └── index.html         # UI template (vis-network path diagram)
+├── generate_dataset.py    # synthetic data generator (with tier-strengths)
 ├── analyze.py             # connector/introducer analysis
-├── run_stress_tests.py    # 12-case assertion suite
+├── run_stress_tests.py    # 16-case assertion suite
+│
+├── twitter_ingester.py    # Twitter follower/following CSV  -> engine CSVs
+├── twitter_sample/        #   sample inputs + generated output
+├── linkedin_ingester.py   # LinkedIn Connections.csv         -> engine CSVs
+├── linkedin_sample/
+├── farcaster_ingester.py  # Farcaster follows + channels     -> engine CSVs
+├── farcaster_sample/
+├── wallet_ingester.py     # Blockchain wallet interactions   -> engine CSVs
+├── wallet_sample/
+│
 ├── people.csv             # generated or your own
 ├── edges.csv              # generated or your own (with optional strength)
+├── identities.csv.example # sample person <-> account mapping
 ├── test_people.csv        # stress-test fixtures
 ├── test_edges.csv
 ├── network_report.json    # produced by analyze.py

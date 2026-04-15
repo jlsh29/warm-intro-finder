@@ -1,0 +1,13 @@
+from,to,strength,tier
+li_alice-anderson,li_charlie-chen,8,mutual
+li_alice-anderson,li_dave-diaz,8,mutual
+li_alice-anderson,li_eve-edwards,8,mutual
+li_alice-anderson,li_mira-patel,8,mutual
+li_alice-anderson,li_noor-rahman,8,mutual
+li_alice-anderson,li_omar-silva,8,mutual
+li_bob-builder,li_charlie-chen,8,mutual
+li_bob-builder,li_dave-diaz,8,mutual
+li_bob-builder,li_eve-edwards,8,mutual
+li_bob-builder,li_petra-lindqvist,8,mutual
+li_bob-builder,li_quentin-wu,8,mutual
+li_bob-builder,li_rashid-hassan,8,mutual
