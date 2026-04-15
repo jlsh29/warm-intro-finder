@@ -1,0 +1,5 @@
+from,to,strength,tier
+tw_alice,tw_bob,8,mutual
+tw_alice,tw_charlie,8,mutual
+tw_bob,tw_charlie,8,mutual
+tw_bob,tw_dave,8,mutual
