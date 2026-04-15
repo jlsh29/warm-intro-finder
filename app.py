@@ -39,6 +39,86 @@ def path_view(path: list[str]) -> list[dict]:
     return [node_view(p) for p in path]
 
 
+def diagram_data(result: dict, entries: list[str]) -> dict:
+    """Build vis-network nodes/edges from a path-finding result.
+
+    Best path edges are styled prominently; alternative-path edges
+    are dimmed/dashed. Each edge carries a hover tooltip with the
+    full strength + tier + reason explanation.
+    """
+    if not result.get("best"):
+        return {"nodes": [], "edges": []}
+
+    paths = [result["best"]] + list(result.get("alternatives") or [])
+    entry_set = set(entries)
+    target_id = result["best"][-1]
+
+    # Collect all unique node ids across paths
+    node_ids: list[str] = []
+    seen: set[str] = set()
+    for p in paths:
+        for nid in p:
+            if nid not in seen:
+                seen.add(nid)
+                node_ids.append(nid)
+
+    def role(nid: str) -> str:
+        if nid == target_id:
+            return "target"
+        if nid in entry_set or any(p[0] == nid for p in paths):
+            return "entry"
+        return "intermediate"
+
+    nodes = []
+    for nid in node_ids:
+        meta = graph.id_to_meta.get(nid, {})
+        company = meta.get("company", "")
+        team = meta.get("team", "")
+        if company and team.startswith(f"{company} / "):
+            team = team[len(company) + 3:]
+        sub = " / ".join(s for s in (company, team, meta.get("role")) if s)
+        nodes.append(
+            {
+                "id": nid,
+                "label": f"{graph.id_to_name.get(nid, nid)}\n{nid}",
+                "title": sub or graph.id_to_name.get(nid, nid),
+                "group": role(nid),
+            }
+        )
+
+    edges = []
+    seen_edges: set[tuple[str, str, int]] = set()
+    for path_idx, p in enumerate(paths):
+        is_best = path_idx == 0
+        for i in range(1, len(p)):
+            a, b = p[i - 1], p[i]
+            key = (a, b, path_idx)
+            if key in seen_edges:
+                continue
+            seen_edges.add(key)
+            s = graph.strength(a, b)
+            tier = graph.tier(a, b)
+            reason = graph.reason(a, b)
+            label_str = (
+                f"{int(s) if float(s).is_integer() else round(s, 1)}|{tier}"
+            )
+            edges.append(
+                {
+                    "from": a,
+                    "to": b,
+                    "label": label_str,
+                    "title": (
+                        f"strength: {s}\\ntier: {tier}\\nreason: {reason}"
+                        f"\\npath: {'BEST' if is_best else f'ALT {path_idx}'}"
+                    ),
+                    "best": is_best,
+                    "pathIndex": path_idx,
+                }
+            )
+
+    return {"nodes": nodes, "edges": edges}
+
+
 @app.route("/", methods=["GET"])
 def index():
     # Provide dropdown options sorted by name
@@ -134,6 +214,7 @@ def search():
         "best": path_view(result["best"]) if result["best"] else None,
         "alternatives": [path_view(p) for p in result["alternatives"]],
         "entry_used": node_view(result["entry_used"]) if result["entry_used"] else None,
+        "diagram": diagram_data(result, entries_raw),
     }
     return render_template(
         "index.html",

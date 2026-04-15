@@ -195,6 +195,61 @@
       </div>
     </form>
 
+    {% if result and result.reachable and result.diagram and result.diagram.nodes %}
+      <div class="card">
+        <h2>Path diagram</h2>
+        <div id="network" style="height: 420px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;"></div>
+        <div style="margin-top: 0.6rem; font-size: 0.78rem; color: var(--muted);">
+          <span style="color: var(--accent);">●</span> entry &nbsp;
+          <span style="color: var(--target);">●</span> target &nbsp;
+          <span style="color: #8a98a9;">●</span> intermediate &nbsp;|&nbsp;
+          <span style="color: var(--accent);">━</span> best path &nbsp;
+          <span style="color: #8a98a9;">┄</span> alternative &nbsp;|&nbsp;
+          edge label = <code>strength|tier</code> &nbsp;·&nbsp; hover for reason
+        </div>
+        <script type="application/json" id="diagram-data">{{ result.diagram | tojson }}</script>
+        <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+        <script>
+          (function () {
+            const raw = document.getElementById('diagram-data').textContent;
+            const data = JSON.parse(raw);
+            const container = document.getElementById('network');
+            const groupColors = {
+              entry:        { background: '#1e3a5f', border: '#4dabf7' },
+              target:       { background: '#5c3a1e', border: '#ffa94d' },
+              intermediate: { background: '#2a3344', border: '#5a6275' },
+            };
+            const nodes = new vis.DataSet(data.nodes.map(n => ({
+              id: n.id,
+              label: n.label,
+              title: n.title,
+              shape: 'box',
+              margin: 10,
+              font: { color: '#e6ecf2', face: '-apple-system, Segoe UI, sans-serif', size: 13 },
+              color: groupColors[n.group] || groupColors.intermediate,
+            })));
+            const edges = new vis.DataSet(data.edges.map(e => ({
+              from: e.from,
+              to: e.to,
+              label: e.label,
+              title: e.title.replace(/\\n/g, '\n'),
+              arrows: 'to',
+              width: e.best ? 3 : 1,
+              dashes: !e.best,
+              color: e.best ? { color: '#4dabf7', highlight: '#74c0fc' } : { color: '#5a6275', highlight: '#8a98a9' },
+              font: { color: '#e6ecf2', face: 'ui-monospace, Menlo, monospace', size: 11, strokeWidth: 0, background: '#1b2230' },
+              smooth: { type: 'curvedCW', roundness: e.pathIndex * 0.15 },
+            })));
+            new vis.Network(container, { nodes, edges }, {
+              layout: { hierarchical: { enabled: true, direction: 'LR', sortMethod: 'directed', levelSeparation: 200, nodeSpacing: 140 } },
+              physics: false,
+              interaction: { hover: true, tooltipDelay: 150 },
+            });
+          })();
+        </script>
+      </div>
+    {% endif %}
+
     {% if result %}
       <div class="card">
         <h2>Result</h2>

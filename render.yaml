@@ -1,0 +1,27 @@
+# Render.com Blueprint - https://render.com/docs/blueprint-spec
+#
+# To deploy: push this repo to GitHub, then on render.com:
+#   New +  ->  Blueprint  ->  pick this repo  ->  Apply
+# Render reads this file and provisions the service automatically.
+
+services:
+  - type: web
+    name: warm-intro-finder
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    # workers=1 because the graph is loaded per-process at import time.
+    # On the free 512MB instance, one worker is plenty for this app.
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 60
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      # Optional: point at non-default CSV files. Defaults pull
+      # people.csv and edges.csv from the repo root, which is fine
+      # for the synthetic dataset that ships with this project.
+      - key: WARM_INTRO_PEOPLE
+        value: people.csv
+      - key: WARM_INTRO_EDGES
+        value: edges.csv
