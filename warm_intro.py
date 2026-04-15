@@ -39,8 +39,11 @@ from core import (
     Relationship,
     RepositoryPayload,
     SocialAccount,
+    TIER_STRENGTH,
     apply_merges,
+    derive_shared_org_relationships,
     people_to_lookups,
+    reason_for,
 )
 from identity import (
     IdentityCluster,
@@ -69,6 +72,17 @@ class Graph:
     identity_clusters: list[IdentityCluster] = field(default_factory=list)
     relationships: list[Relationship] = field(default_factory=list)
     merges: list[MergeProposal] = field(default_factory=list)
+    # Phase C: per-edge tier + reason for hop explanations.
+    edge_tier: dict[tuple[str, str], str] = field(default_factory=dict)
+    edge_reason: dict[tuple[str, str], str] = field(default_factory=dict)
+
+    def tier(self, a: str, b: str) -> str:
+        key = (a, b) if a < b else (b, a)
+        return self.edge_tier.get(key, "direct")
+
+    def reason(self, a: str, b: str) -> str:
+        key = (a, b) if a < b else (b, a)
+        return self.edge_reason.get(key, "direct connection")
 
     def strength(self, a: str, b: str) -> float:
         key = (a, b) if a < b else (b, a)
@@ -113,6 +127,8 @@ def build_graph(
     edges_path: str,
     identities_path: str | None = None,
     resolver: IdentityResolver | None = None,
+    derive_shared_org: bool = False,
+    shared_org_group_by: str = "team",
 ) -> Graph:
     """Convenience: construct a Graph from CSV files.
 
@@ -121,13 +137,35 @@ def build_graph(
     CSVRepository. `resolver` defaults to `SharedAccountResolver`,
     which collapses persons that share a platform account (Phase B);
     pass `ManualCSVResolver()` to disable merging.
+
+    Phase C: pass `derive_shared_org=True` to synthesize person-person
+    edges of tier "shared_org" (strength 5) between every pair of
+    people sharing a `shared_org_group_by` attribute (default "team").
+    Existing direct edges win on dedup since they have higher strength.
     """
     repo = CSVRepository(
         people_path=people_path,
         edges_path=edges_path,
         identities_path=identities_path,
     )
-    return build_graph_from_repository(repo, resolver or SharedAccountResolver())
+    payload = repo.load()
+    if derive_shared_org:
+        derived = derive_shared_org_relationships(
+            payload.people, group_by=shared_org_group_by
+        )
+        if derived:
+            print(
+                f"info: derived {len(derived)} shared_org edge(s) "
+                f"grouped by '{shared_org_group_by}'.",
+                file=sys.stderr,
+            )
+            payload = RepositoryPayload(
+                people=payload.people,
+                accounts=payload.accounts,
+                relationships=list(payload.relationships) + derived,
+                account_claims=payload.account_claims,
+            )
+    return _build_graph_from_payload(payload, resolver or SharedAccountResolver())
 
 
 def _build_graph_from_payload(
@@ -158,6 +196,8 @@ def _build_graph_from_payload(
 
     adjacency: dict[str, set[str]] = defaultdict(set)
     edge_strength: dict[tuple[str, str], float] = {}
+    edge_tier: dict[tuple[str, str], str] = {}
+    edge_reason: dict[tuple[str, str], str] = {}
     unknown: set[str] = set()
     saw_explicit_strength = False
     for rel in payload.relationships:
@@ -179,8 +219,13 @@ def _build_graph_from_payload(
         adjacency[b].add(a)
         key = (a, b) if a < b else (b, a)
         s = rel.strength if rel.strength and rel.strength > 0 else DEFAULT_STRENGTH
-        # If the edge appears twice with different strengths, keep the stronger.
-        edge_strength[key] = max(edge_strength.get(key, s), s)
+        # If the edge appears twice keep the stronger, and let its tier
+        # win — strongest-evidence wins both routing weight and reason.
+        prev = edge_strength.get(key)
+        if prev is None or s > prev:
+            edge_strength[key] = s
+            edge_tier[key] = rel.tier or "direct"
+            edge_reason[key] = reason_for(rel)
         if rel.strength and rel.strength != DEFAULT_STRENGTH:
             saw_explicit_strength = True
 
@@ -210,6 +255,8 @@ def _build_graph_from_payload(
         identity_clusters=clusters,
         relationships=list(payload.relationships),
         merges=merges,
+        edge_tier=edge_tier,
+        edge_reason=edge_reason,
     )
 
 
@@ -309,10 +356,13 @@ def format_path(graph: Graph, path: list[str], explain: bool = False) -> str:
     parts = [labeler(path[0])]
     for i in range(1, len(path)):
         s = graph.strength(path[i - 1], path[i])
-        arrow = f" -({_fmt_strength(s)})-> "
+        tier = graph.tier(path[i - 1], path[i])
+        arrow_label = f"{_fmt_strength(s)}|{tier}"
         if explain:
-            arrow = f"\n    -({_fmt_strength(s)})-> "
-        parts.append(arrow)
+            reason = graph.reason(path[i - 1], path[i])
+            parts.append(f"\n    -({arrow_label}: {reason})-> ")
+        else:
+            parts.append(f" -({arrow_label})-> ")
         parts.append(labeler(path[i]))
     return "".join(parts)
 
@@ -391,6 +441,12 @@ def main(argv: list[str] | None = None) -> int:
         "Enables Phase B identity merging via shared accounts.",
     )
     parser.add_argument(
+        "--derive-shared-org",
+        action="store_true",
+        help="Phase C: synthesize shared_org edges (strength 5) between "
+        "every pair of people sharing the same `team` attribute.",
+    )
+    parser.add_argument(
         "--entry",
         required=True,
         help="Comma-separated entry-point ids or names (one or more)",
@@ -410,7 +466,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    graph = build_graph(args.people, args.edges, identities_path=args.identities)
+    graph = build_graph(
+        args.people,
+        args.edges,
+        identities_path=args.identities,
+        derive_shared_org=args.derive_shared_org,
+    )
     entries = [e for e in args.entry.split(",") if e.strip()]
     if not entries:
         parser.error("--entry must contain at least one person")
@@ -461,6 +522,8 @@ def _path_payload(graph: Graph, path: list[str], explain: bool = False) -> dict:
             "to": path[i],
             "strength": graph.strength(path[i - 1], path[i]),
             "cost": graph.edge_cost(path[i - 1], path[i]),
+            "tier": graph.tier(path[i - 1], path[i]),
+            "reason": graph.reason(path[i - 1], path[i]),
         }
         for i in range(1, len(path))
     ]

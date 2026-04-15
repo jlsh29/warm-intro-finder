@@ -225,6 +225,81 @@ def main() -> int:
             f"expected total_strength=7, got {r['total_strength']}",
         )
 
+    # ---- 14. Phase C: tiered scoring + shared-org derivation -------------
+    header("14. Tiered scoring — explicit tier column + derived shared_org")
+    with tempfile.TemporaryDirectory() as td:
+        people_path = os.path.join(td, "people.csv")
+        edges_path = os.path.join(td, "edges.csv")
+        with open(people_path, "w", encoding="utf-8") as f:
+            f.write(
+                "id,name,company,team,role\n"
+                "x1,X1,Acme,Acme/Alpha,Engineer\n"
+                "x2,X2,Acme,Acme/Alpha,Engineer\n"
+                "x3,X3,Acme,Acme/Alpha,Engineer\n"
+                "x4,X4,Beta,Beta/Solo,Engineer\n"
+            )
+        # Explicit tier rows mixing direct and platform_similarity.
+        with open(edges_path, "w", encoding="utf-8") as f:
+            f.write(
+                "from,to,tier\n"
+                "x1,x4,direct\n"
+                "x2,x4,platform_similarity\n"
+            )
+        # Without --derive-shared-org: only edges in the CSV exist.
+        g = build_graph(people_path, edges_path)
+        # x1 -> x4 direct (strength 10); x2 -> x4 platform_similarity (strength 2).
+        check(
+            "direct tier defaults to strength 10",
+            g.strength("x1", "x4") == 10,
+            f"expected 10, got {g.strength('x1', 'x4')}",
+        )
+        check(
+            "platform_similarity tier defaults to strength 2",
+            g.strength("x2", "x4") == 2,
+            f"expected 2, got {g.strength('x2', 'x4')}",
+        )
+        check(
+            "edge tier labels exposed on graph",
+            g.tier("x1", "x4") == "direct"
+            and g.tier("x2", "x4") == "platform_similarity",
+            f"got {g.tier('x1', 'x4')} and {g.tier('x2', 'x4')}",
+        )
+        # x3 has no edges in the CSV, so unreachable from x1.
+        r = find_warm_intro(g, ["x1"], "x3", top_k=1)
+        check(
+            "x3 unreachable without derivation (no edges in CSV)",
+            r["best"] is None,
+            f"expected unreachable, got {r['best']}",
+        )
+
+        # With --derive-shared-org=True, x1/x2/x3 (same team) gain
+        # shared_org edges (strength 5) — now x1 can reach x3.
+        g2 = build_graph(people_path, edges_path, derive_shared_org=True)
+        r2 = find_warm_intro(g2, ["x1"], "x3", top_k=1)
+        check(
+            "with derivation, x1 reaches x3 via shared_org",
+            r2["best"] is not None and r2["total_strength"] == 5,
+            f"expected total_strength=5, got {r2.get('total_strength')}",
+        )
+        check(
+            "derived edge tier is shared_org",
+            g2.tier("x1", "x3") == "shared_org",
+            f"got tier {g2.tier('x1', 'x3')}",
+        )
+        check(
+            "shared_org reason names the team",
+            "Acme/Alpha" in g2.reason("x1", "x3"),
+            f"reason was {g2.reason('x1', 'x3')!r}",
+        )
+        # x1<->x4 explicit direct (strength 10) beats potential derived
+        # shared_org (strength 5) but anyway x4 is on a different team,
+        # so no derived edge exists there.
+        check(
+            "explicit direct edge unaffected by derivation",
+            g2.tier("x1", "x4") == "direct" and g2.strength("x1", "x4") == 10,
+            f"tier={g2.tier('x1', 'x4')} strength={g2.strength('x1', 'x4')}",
+        )
+
     # ---- summary --------------------------------------------------------
     header("SUMMARY")
     if failures:

@@ -57,27 +57,59 @@ class Person:
     attributes: dict[str, str] = field(default_factory=dict)
 
 
-# Relationship "kinds" describe what the edge represents. Strength is
-# numeric (higher = stronger); the kind lets downstream code build
-# explanations like "shared org via Helix Labs".
+# Relationship "kinds" describe the entity shape of the edge.
 RELATIONSHIP_KINDS = (
-    "person-person",      # explicit knows / mutual contact
+    "person-person",      # routing edge between two persons
     "person-account",     # ownership: person owns this account
     "account-account",    # cross-platform identity match
-    "shared-organization",  # both at same company / community
-    "platform-similarity",  # weak signal (followers / cluster)
 )
+
+# Relationship "tiers" describe the *trust quality* of a person-person
+# edge and map to a default strength. Phase C scoring spec.
+TIER_STRENGTH: dict[str, float] = {
+    "direct": 10.0,                # explicit "knows" / accepted connection
+    "mutual": 8.0,                 # mutual contact / introduced before
+    "shared_org": 5.0,             # same company / team / community
+    "platform_similarity": 2.0,    # weak signal (follower overlap, cluster)
+}
+
+TIER_REASONS: dict[str, str] = {
+    "direct": "direct connection",
+    "mutual": "mutual contact",
+    "shared_org": "shared organization",
+    "platform_similarity": "platform similarity",
+}
+
+
+def reason_for(rel: "Relationship") -> str:
+    """Human-readable explanation for why a relationship exists."""
+    base = TIER_REASONS.get(rel.tier or "direct", rel.tier or "connection")
+    if rel.tier == "shared_org":
+        group = rel.attributes.get("shared_group")
+        kind = rel.attributes.get("group_kind", "group")
+        if group:
+            return f"shared {kind}: {group}"
+    if rel.source and rel.source not in {"csv", ""}:
+        return f"{base} (via {rel.source})"
+    return base
 
 
 @dataclass
 class Relationship:
-    """Typed edge between two entity ids."""
+    """Typed edge between two entity ids.
+
+    `kind` describes the entity shape (person-person, person-account, …).
+    `tier` describes the trust quality (direct/mutual/shared_org/...) and
+    is used to score routing strength. `tier` is only meaningful when
+    `kind == "person-person"`.
+    """
 
     from_id: str
     to_id: str
-    kind: str  # one of RELATIONSHIP_KINDS
+    kind: str
+    tier: str | None = None
     strength: float = 1.0
-    source: str = ""  # e.g. "csv", "twitter-api", "manual-mapping"
+    source: str = ""
     attributes: dict[str, str] = field(default_factory=dict)
 
 
@@ -357,6 +389,7 @@ class CSVRepository:
                     f"{self.edges_path}: expected header with 'from' and 'to' columns"
                 )
             has_strength = "strength" in reader.fieldnames
+            has_tier = "tier" in reader.fieldnames
             seen: set[tuple[str, str]] = set()
             for row in reader:
                 a = (row["from"] or "").strip()
@@ -369,20 +402,38 @@ class CSVRepository:
                 if key in seen:
                     continue
                 seen.add(key)
-                strength = self.DEFAULT_STRENGTH
+
+                tier = (
+                    (row.get("tier") or "").strip().lower() if has_tier else ""
+                ) or "direct"
+                if tier not in TIER_STRENGTH:
+                    # Unknown tier: keep the label, fall back to default
+                    # strength of 1.0 below.
+                    pass
+
+                explicit_strength: float | None = None
                 if has_strength:
                     raw = (row.get("strength") or "").strip()
-                    try:
-                        strength = float(raw) if raw else self.DEFAULT_STRENGTH
-                    except ValueError:
-                        strength = self.DEFAULT_STRENGTH
-                    if strength <= 0:
-                        strength = self.DEFAULT_STRENGTH
+                    if raw:
+                        try:
+                            v = float(raw)
+                            if v > 0:
+                                explicit_strength = v
+                        except ValueError:
+                            pass
+
+                # Precedence: explicit strength > tier-default > 1.0
+                if explicit_strength is not None:
+                    strength = explicit_strength
+                else:
+                    strength = TIER_STRENGTH.get(tier, self.DEFAULT_STRENGTH)
+
                 rels.append(
                     Relationship(
                         from_id=a,
                         to_id=b,
                         kind="person-person",
+                        tier=tier,
                         strength=strength,
                         source="csv",
                     )
@@ -391,6 +442,52 @@ class CSVRepository:
 
 
 # --- Convenience -------------------------------------------------------
+
+
+def derive_shared_org_relationships(
+    people: list[Person],
+    group_by: str = "team",
+    max_group_size: int = 50,
+) -> list[Relationship]:
+    """Synthesize shared-organization edges from people metadata.
+
+    For each value of `group_by` attribute (default "team"), emit a
+    person-person Relationship of tier "shared_org" between every pair
+    of members. Each edge gets attribute `shared_group` so the reason
+    can name the org in output.
+
+    Groups larger than `max_group_size` are skipped to keep the
+    quadratic blow-up bounded; in practice teams stay small but
+    "company" can be hundreds. Pass a higher cap if you need it.
+
+    Caller is responsible for merging these into the existing
+    relationships list (the build pipeline dedupes by max-strength).
+    """
+    from itertools import combinations as _combos
+
+    by_group: dict[str, list[str]] = {}
+    for p in people:
+        g = p.attributes.get(group_by, "")
+        if g:
+            by_group.setdefault(g, []).append(p.id)
+
+    rels: list[Relationship] = []
+    for group, members in by_group.items():
+        if len(members) < 2 or len(members) > max_group_size:
+            continue
+        for a, b in _combos(sorted(members), 2):
+            rels.append(
+                Relationship(
+                    from_id=a,
+                    to_id=b,
+                    kind="person-person",
+                    tier="shared_org",
+                    strength=TIER_STRENGTH["shared_org"],
+                    source=f"derived:{group_by}",
+                    attributes={"shared_group": group, "group_kind": group_by},
+                )
+            )
+    return rels
 
 
 def people_to_lookups(
