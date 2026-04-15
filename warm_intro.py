@@ -39,9 +39,16 @@ from core import (
     Relationship,
     RepositoryPayload,
     SocialAccount,
+    apply_merges,
     people_to_lookups,
 )
-from identity import IdentityCluster, IdentityResolver, ManualCSVResolver
+from identity import (
+    IdentityCluster,
+    IdentityResolver,
+    ManualCSVResolver,
+    MergeProposal,
+    SharedAccountResolver,
+)
 
 
 DEFAULT_STRENGTH = 1.0
@@ -61,6 +68,7 @@ class Graph:
     accounts: list[SocialAccount] = field(default_factory=list)
     identity_clusters: list[IdentityCluster] = field(default_factory=list)
     relationships: list[Relationship] = field(default_factory=list)
+    merges: list[MergeProposal] = field(default_factory=list)
 
     def strength(self, a: str, b: str) -> float:
         key = (a, b) if a < b else (b, a)
@@ -110,22 +118,41 @@ def build_graph(
 
     Backwards compatible with the original two-arg signature. Pass
     `identities_path` to also ingest social-account mappings via
-    CSVRepository, and `resolver` to bucket those accounts into
-    identity clusters (defaults to ManualCSVResolver, a no-op when no
-    accounts exist).
+    CSVRepository. `resolver` defaults to `SharedAccountResolver`,
+    which collapses persons that share a platform account (Phase B);
+    pass `ManualCSVResolver()` to disable merging.
     """
     repo = CSVRepository(
         people_path=people_path,
         edges_path=edges_path,
         identities_path=identities_path,
     )
-    return build_graph_from_repository(repo, resolver or ManualCSVResolver())
+    return build_graph_from_repository(repo, resolver or SharedAccountResolver())
 
 
 def _build_graph_from_payload(
     payload: RepositoryPayload,
     resolver: IdentityResolver | None,
 ) -> Graph:
+    # Phase B: ask the resolver for merge proposals, apply them to the
+    # payload, then rebuild clusters from the merged data. Routing then
+    # operates on the canonical person ids only.
+    merges: list[MergeProposal] = []
+    if resolver is not None:
+        first_pass = resolver.resolve(payload)
+        merges = list(first_pass.merges)
+        if merges:
+            payload = apply_merges(payload, merges)
+            for m in merges:
+                print(
+                    f"info: merging {m.merged_ids} into {m.canonical_id} "
+                    f"({m.reason}, confidence={m.confidence:.2f})",
+                    file=sys.stderr,
+                )
+        clusters = list(resolver.resolve(payload).clusters)
+    else:
+        clusters = []
+
     id_to_name, name_to_ids, id_to_meta = people_to_lookups(payload.people)
     known_ids = set(id_to_name)
 
@@ -173,10 +200,6 @@ def _build_graph_from_payload(
     for pid in known_ids:
         adjacency.setdefault(pid, set())
 
-    clusters: list[IdentityCluster] = []
-    if resolver is not None:
-        clusters = list(resolver.resolve(payload.people, payload.accounts))
-
     return Graph(
         adjacency=dict(adjacency),
         id_to_name=id_to_name,
@@ -186,6 +209,7 @@ def _build_graph_from_payload(
         accounts=list(payload.accounts),
         identity_clusters=clusters,
         relationships=list(payload.relationships),
+        merges=merges,
     )
 
 
@@ -362,6 +386,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--people", required=True, help="Path to people.csv (id,name)")
     parser.add_argument("--edges", required=True, help="Path to edges.csv (from,to)")
     parser.add_argument(
+        "--identities",
+        help="Optional path to identities.csv (person_id,platform,handle). "
+        "Enables Phase B identity merging via shared accounts.",
+    )
+    parser.add_argument(
         "--entry",
         required=True,
         help="Comma-separated entry-point ids or names (one or more)",
@@ -381,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    graph = build_graph(args.people, args.edges)
+    graph = build_graph(args.people, args.edges, identities_path=args.identities)
     entries = [e for e in args.entry.split(",") if e.strip()]
     if not entries:
         parser.error("--entry must contain at least one person")
@@ -446,6 +475,42 @@ def _path_payload(graph: Graph, path: list[str], explain: bool = False) -> dict:
     }
 
 
+def _account_payload(graph: Graph, account_id: str) -> dict:
+    for acc in graph.accounts:
+        if acc.id == account_id:
+            return {
+                "id": acc.id,
+                "platform": acc.platform,
+                "handle": acc.handle,
+            }
+    return {"id": account_id, "platform": "", "handle": ""}
+
+
+def _identity_clusters_payload(graph: Graph) -> list[dict]:
+    return [
+        {
+            "person_id": c.person_id,
+            "person_name": graph.id_to_name.get(c.person_id, c.person_id),
+            "account_count": len(c.account_ids),
+            "accounts": [_account_payload(graph, a) for a in c.account_ids],
+        }
+        for c in graph.identity_clusters
+    ]
+
+
+def _merges_payload(graph: Graph) -> list[dict]:
+    return [
+        {
+            "canonical_id": m.canonical_id,
+            "canonical_name": graph.id_to_name.get(m.canonical_id, m.canonical_id),
+            "merged_ids": list(m.merged_ids),
+            "reason": m.reason,
+            "confidence": m.confidence,
+        }
+        for m in graph.merges
+    ]
+
+
 def write_result_json(
     path: str, graph: Graph, result: dict, explain: bool = False
 ) -> None:
@@ -469,6 +534,8 @@ def write_result_json(
             _path_payload(graph, p, explain=explain) for p in result["alternatives"]
         ],
         "explanation": result["explanation"],
+        "identity_clusters": _identity_clusters_payload(graph),
+        "merges": _merges_payload(graph),
     }
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)

@@ -17,6 +17,9 @@ from __future__ import annotations
 
 import sys
 
+import os
+import tempfile
+
 from warm_intro import build_graph, find_warm_intro, resolve
 
 PEOPLE = "test_people.csv"
@@ -160,6 +163,67 @@ def main() -> int:
         len(r2["alternatives"]) <= 1,
         f"got {len(r2['alternatives'])} alts",
     )
+
+    # ---- 13. Phase B: shared-account merging -----------------------------
+    header("13. Identity merging — two persons sharing a Twitter handle merge")
+    with tempfile.TemporaryDirectory() as td:
+        people_path = os.path.join(td, "people.csv")
+        edges_path = os.path.join(td, "edges.csv")
+        identities_path = os.path.join(td, "identities.csv")
+        with open(people_path, "w", encoding="utf-8") as f:
+            f.write("id,name\nu1,Alpha\nu2,Beta\nu3,Gamma\n")
+        with open(edges_path, "w", encoding="utf-8") as f:
+            f.write("from,to,strength\nu1,u3,5\nu2,u3,7\n")
+        with open(identities_path, "w", encoding="utf-8") as f:
+            # u1 and u2 both claim @same — they are the same person.
+            f.write("person_id,platform,handle\n"
+                    "u1,twitter,@same\n"
+                    "u2,twitter,@same\n"
+                    "u2,linkedin,beta-li\n")
+        g = build_graph(people_path, edges_path, identities_path=identities_path)
+        print(f"  merges proposed: {len(g.merges)}")
+        for m in g.merges:
+            print(f"    {m.canonical_id} <- {m.merged_ids}: {m.reason}")
+        print(f"  surviving people: {sorted(g.id_to_name)}")
+        print(f"  identity clusters: {len(g.identity_clusters)}")
+        for c in g.identity_clusters:
+            print(f"    {c.person_id}: {c.account_ids}")
+        # u1 < u2 lexicographically, so u1 wins as canonical.
+        check(
+            "exactly one merge proposed",
+            len(g.merges) == 1,
+            f"got {len(g.merges)}",
+        )
+        check(
+            "u1 is canonical, u2 merged",
+            g.merges and g.merges[0].canonical_id == "u1"
+            and g.merges[0].merged_ids == ["u2"],
+            "wrong canonical/merged ids",
+        )
+        check(
+            "u2 dropped from people",
+            "u2" not in g.id_to_name,
+            "u2 should have been merged away",
+        )
+        check(
+            "u1 owns both linkedin and twitter accounts now",
+            any(c.person_id == "u1" and "linkedin:beta-li" in c.account_ids
+                and "twitter:@same" in c.account_ids
+                for c in g.identity_clusters),
+            "u1 cluster missing merged accounts",
+        )
+        # The relationship u2->u3 should now exist as u1->u3 (max strength wins).
+        r = find_warm_intro(g, ["u1"], "u3", top_k=1)
+        check(
+            "u1 reaches u3 in 1 hop",
+            r["hops"] == 1,
+            f"expected 1 hop, got {r['hops']}",
+        )
+        check(
+            "merged edge keeps max strength (7)",
+            r["total_strength"] == 7,
+            f"expected total_strength=7, got {r['total_strength']}",
+        )
 
     # ---- summary --------------------------------------------------------
     header("SUMMARY")

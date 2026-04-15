@@ -86,11 +86,141 @@ class Relationship:
 
 @dataclass
 class RepositoryPayload:
-    """What every GraphRepository.load() must return."""
+    """What every GraphRepository.load() must return.
+
+    `account_claims` carries the raw (account_id, person_id) pairs as
+    seen at ingestion time — including duplicates where two persons
+    claim the same account. The identity layer uses these to propose
+    person-level merges (Phase B).
+    """
 
     people: list[Person]
     accounts: list[SocialAccount]
     relationships: list[Relationship]
+    account_claims: list[tuple[str, str]] = field(default_factory=list)
+
+
+def apply_merges(
+    payload: RepositoryPayload,
+    merges: "list[MergeProposal]",  # forward ref, defined in identity.py
+) -> RepositoryPayload:
+    """Collapse `merged_ids` into `canonical_id` across the entire payload.
+
+    - Person entities for merged ids are dropped; their accounts move to
+      the canonical Person.
+    - Relationships with merged endpoints are rewritten to the canonical
+      id. Self-edges are dropped. Duplicate edges keep the max strength.
+    - Account ownership is rewritten to the canonical id.
+
+    Idempotent: applying the same merges twice is a no-op.
+    """
+    if not merges:
+        return payload
+
+    # Build id -> canonical map
+    canonical: dict[str, str] = {}
+    for m in merges:
+        for mid in m.merged_ids:
+            canonical[mid] = m.canonical_id
+    if not canonical:
+        return payload
+
+    def canon(pid: str) -> str:
+        seen: set[str] = set()
+        while pid in canonical and pid not in seen:
+            seen.add(pid)
+            pid = canonical[pid]
+        return pid
+
+    # People: keep only canonical persons; aggregate accounts onto them
+    by_id = {p.id: p for p in payload.people}
+    surviving: dict[str, Person] = {}
+    for p in payload.people:
+        cid = canon(p.id)
+        if cid not in by_id:
+            # canonical id not present; treat as identity
+            cid = p.id
+        if cid not in surviving:
+            target = by_id.get(cid, p)
+            surviving[cid] = Person(
+                id=target.id,
+                name=target.name,
+                accounts=[],
+                attributes=dict(target.attributes),
+            )
+    for p in payload.people:
+        cid = canon(p.id)
+        if cid not in surviving:
+            continue
+        for acc in p.accounts:
+            new_acc = SocialAccount(
+                id=acc.id,
+                platform=acc.platform,
+                handle=acc.handle,
+                owner_person_id=cid,
+                attributes=dict(acc.attributes),
+            )
+            # Dedup accounts already attached
+            if not any(a.id == new_acc.id for a in surviving[cid].accounts):
+                surviving[cid].accounts.append(new_acc)
+
+    new_people = list(surviving.values())
+
+    # Accounts: rewrite owners and dedupe
+    seen_acc: dict[str, SocialAccount] = {}
+    for acc in payload.accounts:
+        owner = canon(acc.owner_person_id) if acc.owner_person_id else None
+        if acc.id in seen_acc:
+            continue
+        seen_acc[acc.id] = SocialAccount(
+            id=acc.id,
+            platform=acc.platform,
+            handle=acc.handle,
+            owner_person_id=owner,
+            attributes=dict(acc.attributes),
+        )
+    new_accounts = list(seen_acc.values())
+
+    # Relationships: rewrite endpoints, drop self-edges, dedupe
+    survivor_ids = {p.id for p in new_people}
+    seen_rel: dict[tuple[str, str, str], Relationship] = {}
+    for rel in payload.relationships:
+        a = canon(rel.from_id)
+        b = canon(rel.to_id)
+        if a == b:
+            continue
+        if rel.kind == "person-person" and (
+            a not in survivor_ids or b not in survivor_ids
+        ):
+            continue
+        key_pair = (a, b) if a < b else (b, a)
+        key = (key_pair[0], key_pair[1], rel.kind)
+        existing = seen_rel.get(key)
+        if existing is None:
+            seen_rel[key] = Relationship(
+                from_id=key_pair[0],
+                to_id=key_pair[1],
+                kind=rel.kind,
+                strength=rel.strength,
+                source=rel.source,
+                attributes=dict(rel.attributes),
+            )
+        else:
+            if rel.strength > existing.strength:
+                existing.strength = rel.strength
+                existing.source = rel.source
+    new_rels = list(seen_rel.values())
+
+    new_claims = [
+        (acc_id, canon(pid)) for acc_id, pid in payload.account_claims
+    ]
+
+    return RepositoryPayload(
+        people=new_people,
+        accounts=new_accounts,
+        relationships=new_rels,
+        account_claims=new_claims,
+    )
 
 
 class GraphRepository(Protocol):
@@ -140,10 +270,13 @@ class CSVRepository:
 
     def load(self) -> RepositoryPayload:
         people = self._load_people()
-        accounts = self._load_accounts(people)
+        accounts, claims = self._load_accounts(people)
         relationships = self._load_relationships(people)
         return RepositoryPayload(
-            people=people, accounts=accounts, relationships=relationships
+            people=people,
+            accounts=accounts,
+            relationships=relationships,
+            account_claims=claims,
         )
 
     def _load_people(self) -> list[Person]:
@@ -172,12 +305,14 @@ class CSVRepository:
                 people.append(Person(id=pid, name=name, attributes=attrs))
         return people
 
-    def _load_accounts(self, people: list[Person]) -> list[SocialAccount]:
+    def _load_accounts(
+        self, people: list[Person]
+    ) -> tuple[list[SocialAccount], list[tuple[str, str]]]:
         if not self.identities_path:
-            return []
+            return [], []
         by_id = {p.id: p for p in people}
-        accounts: list[SocialAccount] = []
-        seen_account_ids: set[str] = set()
+        accounts: dict[str, SocialAccount] = {}
+        claims: list[tuple[str, str]] = []
         with open(self.identities_path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             required = {"person_id", "platform", "handle"}
@@ -193,22 +328,24 @@ class CSVRepository:
                 if not pid or not platform or not handle:
                     continue
                 if pid not in by_id:
-                    # Skip rows pointing at unknown people; warn in the
-                    # caller layer rather than here so it's deduplicated.
                     continue
                 acc_id = f"{platform}:{handle}"
-                if acc_id in seen_account_ids:
+                claims.append((acc_id, pid))
+                if acc_id in accounts:
+                    # Subsequent claims for the same account are tracked
+                    # in `claims` so the identity layer can detect cross-
+                    # person overlap and propose a merge. We do NOT
+                    # silently overwrite the first claim's owner here.
                     continue
-                seen_account_ids.add(acc_id)
                 account = SocialAccount(
                     id=acc_id,
                     platform=platform,
                     handle=handle,
                     owner_person_id=pid,
                 )
+                accounts[acc_id] = account
                 by_id[pid].accounts.append(account)
-                accounts.append(account)
-        return accounts
+        return list(accounts.values()), claims
 
     def _load_relationships(self, people: list[Person]) -> list[Relationship]:
         known = {p.id for p in people}
