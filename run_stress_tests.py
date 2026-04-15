@@ -17,10 +17,12 @@ from __future__ import annotations
 
 import sys
 
+import csv
 import json
 import os
 import tempfile
 
+from twitter_ingester import ingest as twitter_ingest
 from warm_intro import (
     build_graph,
     find_warm_intro,
@@ -373,6 +375,149 @@ def main() -> int:
             "legacy did NOT gain schema_version",
             "schema_version" not in legacy,
             "legacy shape leaked schema_version",
+        )
+
+    # ---- 16. Twitter ingester: mutuals + dedup + auto-detect + routing ---
+    header("16. Twitter ingester — mutual edges, cross-seed dedup, auto-detect")
+    with tempfile.TemporaryDirectory() as td:
+        # Mixed column conventions exercise the auto-detector.
+        a_following = os.path.join(td, "a_following.csv")
+        a_followers = os.path.join(td, "a_followers.csv")
+        b_following = os.path.join(td, "b_following.csv")
+        b_followers = os.path.join(td, "b_followers.csv")
+        with open(a_following, "w", encoding="utf-8") as f:
+            f.write("username,display_name\n@bob,Bob\n@charlie,Charlie\n@dave,Dave\n")
+        with open(a_followers, "w", encoding="utf-8") as f:
+            f.write("username,display_name\n@bob,Bob\n@charlie,Charlie\n@eve,Eve\n")
+        with open(b_following, "w", encoding="utf-8") as f:
+            f.write("handle,name\nalice,Alice\ncharlie,Charlie\nfrank,Frank\n")
+        with open(b_followers, "w", encoding="utf-8") as f:
+            f.write("handle,name\nalice,Alice\ncharlie,Charlie\ngrace,Grace\n")
+
+        out = os.path.join(td, "out")
+        result = twitter_ingest(
+            seeds=[
+                ("@alice", a_following, a_followers),
+                ("@bob", b_following, b_followers),
+            ],
+            out_dir=out,
+            include_one_way=False,
+            edge_tier="mutual",
+        )
+
+        # Read back the generated files
+        people_rows = list(csv.DictReader(open(result["people"], encoding="utf-8")))
+        edge_rows = list(csv.DictReader(open(result["edges"], encoding="utf-8")))
+        identity_rows = list(csv.DictReader(open(result["identities"], encoding="utf-8")))
+
+        # 7 unique handles across both seeds (alice/bob/charlie/dave/eve/frank/grace)
+        check(
+            "ingester emits 7 unique people across both seeds",
+            len(people_rows) == 7,
+            f"got {len(people_rows)}: {[r['id'] for r in people_rows]}",
+        )
+
+        # Mutual edges: (alice,bob), (alice,charlie), (bob,charlie) = 3 total
+        check(
+            "ingester emits 3 mutual edges (mutual-only mode)",
+            len(edge_rows) == 3,
+            f"got {len(edge_rows)}: {[(r['from'], r['to']) for r in edge_rows]}",
+        )
+        edge_pairs = {(r["from"], r["to"]) for r in edge_rows}
+        check(
+            "specific mutual pairs present",
+            edge_pairs == {
+                ("tw_alice", "tw_bob"),
+                ("tw_alice", "tw_charlie"),
+                ("tw_bob", "tw_charlie"),
+            },
+            f"edges: {sorted(edge_pairs)}",
+        )
+
+        # Dedup: charlie appears under both seeds but only once in people.csv
+        ids = [r["id"] for r in people_rows]
+        check(
+            "cross-seed dedup — tw_charlie appears exactly once",
+            ids.count("tw_charlie") == 1,
+            f"tw_charlie count: {ids.count('tw_charlie')}",
+        )
+
+        # Auto-detect picked up display names from BOTH conventions
+        names = {r["id"]: r["name"] for r in people_rows}
+        check(
+            "auto-detect captured names from username/display_name",
+            names.get("tw_bob") == "Bob",
+            f"tw_bob name: {names.get('tw_bob')!r}",
+        )
+        check(
+            "auto-detect captured names from handle/name",
+            names.get("tw_frank") == "Frank",
+            f"tw_frank name: {names.get('tw_frank')!r}",
+        )
+
+        # Identities map every person to their @handle
+        check(
+            "identities.csv has one row per person, twitter platform",
+            len(identity_rows) == 7
+            and all(r["platform"] == "twitter" for r in identity_rows),
+            f"got {len(identity_rows)} rows",
+        )
+        check(
+            "identity handles include the @ prefix",
+            all(r["handle"].startswith("@") for r in identity_rows),
+            f"handles: {[r['handle'] for r in identity_rows]}",
+        )
+
+        # End-to-end: feed the output back into the engine and route a query.
+        g = build_graph(
+            result["people"],
+            result["edges"],
+            identities_path=result["identities"],
+        )
+        r = find_warm_intro(g, ["tw_alice"], "tw_charlie", top_k=1)
+        check(
+            "engine routes tw_alice -> tw_charlie in 1 hop (direct mutual)",
+            r["hops"] == 1,
+            f"expected 1 hop, got {r['hops']}",
+        )
+        check(
+            "routed edge carries the mutual tier (strength 8)",
+            r["total_strength"] == 8,
+            f"expected total_strength=8, got {r['total_strength']}",
+        )
+        check(
+            "engine sees twitter accounts on the merged person",
+            any(c.person_id == "tw_alice" and "twitter:@alice" in c.account_ids
+                for c in g.identity_clusters),
+            "tw_alice cluster missing twitter:@alice",
+        )
+
+        # --include-one-way should add more edges than mutual-only.
+        out2 = os.path.join(td, "out_oneway")
+        result2 = twitter_ingest(
+            seeds=[
+                ("@alice", a_following, a_followers),
+                ("@bob", b_following, b_followers),
+            ],
+            out_dir=out2,
+            include_one_way=True,
+            edge_tier="mutual",
+        )
+        edge_rows_2 = list(csv.DictReader(open(result2["edges"], encoding="utf-8")))
+        check(
+            "--include-one-way produces strictly more edges",
+            len(edge_rows_2) > len(edge_rows),
+            f"mutual-only={len(edge_rows)}, with one-way={len(edge_rows_2)}",
+        )
+        # Mutual-tier edges from the first run must still be present at strength 8
+        oneway_lookup = {
+            (r["from"], r["to"]): (int(r["strength"]), r["tier"])
+            for r in edge_rows_2
+        }
+        check(
+            "mutual evidence wins over one-way on dedup",
+            oneway_lookup.get(("tw_alice", "tw_bob")) == (8, "mutual"),
+            f"got {oneway_lookup.get(('tw_alice', 'tw_bob'))}",
         )
 
     # ---- summary --------------------------------------------------------
