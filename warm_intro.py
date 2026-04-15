@@ -457,7 +457,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--output",
-        help="Optional path to write the full result as JSON (paths enriched with names)",
+        help="Optional path to write the full result as JSON. Default is "
+        "the Phase D structured shape (nodes/edges/identity_clusters/paths). "
+        "Use --legacy-output for the pre-Phase-D flat shape.",
+    )
+    parser.add_argument(
+        "--legacy-output",
+        action="store_true",
+        help="Write the legacy flat JSON shape (best_path/alternatives) "
+        "instead of the new structured shape.",
     )
     parser.add_argument(
         "--explain",
@@ -483,7 +491,17 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.output:
-        write_result_json(args.output, graph, result, explain=args.explain)
+        if args.legacy_output:
+            write_result_json(args.output, graph, result, explain=args.explain)
+        else:
+            write_result_json_v2(
+                args.output,
+                graph,
+                result,
+                entries=entries,
+                target=args.target,
+                top_k=args.top_k,
+            )
         print(f"Wrote {args.output}", file=sys.stderr)
 
     if result["best"] is None:
@@ -599,6 +617,172 @@ def write_result_json(
         "explanation": result["explanation"],
         "identity_clusters": _identity_clusters_payload(graph),
         "merges": _merges_payload(graph),
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+
+
+# --- Phase D: structured output (nodes/edges/identity_clusters/paths) -----
+
+
+def _confidence_for(strength: float | None) -> float:
+    """Map an edge strength onto a [0, 1] confidence score.
+
+    Mapping mirrors TIER_STRENGTH so direct=10 -> 1.0, mutual=8 -> 0.8,
+    shared_org=5 -> 0.5, platform_similarity=2 -> 0.2. Heuristic
+    resolvers can override by emitting their own confidence in
+    Relationship.attributes['confidence'] later.
+    """
+    if not strength or strength <= 0:
+        return 0.0
+    return min(strength / 10.0, 1.0)
+
+
+def _node_views(graph: Graph) -> list[dict]:
+    """Unified node list: every Person + every SocialAccount."""
+    nodes: list[dict] = []
+    for pid, name in graph.id_to_name.items():
+        meta = graph.id_to_meta.get(pid, {})
+        nodes.append(
+            {
+                "id": pid,
+                "type": "person",
+                "name": name,
+                "attributes": {k: v for k, v in meta.items() if v},
+            }
+        )
+    for acc in graph.accounts:
+        nodes.append(
+            {
+                "id": acc.id,
+                "type": "account",
+                "platform": acc.platform,
+                "handle": acc.handle,
+                "owner_person_id": acc.owner_person_id,
+            }
+        )
+    return nodes
+
+
+def _edge_views(graph: Graph) -> list[dict]:
+    """Unified edge list: every Relationship + ownership edges from accounts."""
+    edges: list[dict] = []
+    for rel in graph.relationships:
+        edges.append(
+            {
+                "from_id": rel.from_id,
+                "to_id": rel.to_id,
+                "kind": rel.kind,
+                "tier": rel.tier,
+                "strength": rel.strength,
+                "cost": (1.0 / rel.strength) if rel.strength and rel.strength > 0 else None,
+                "reason": reason_for(rel),
+                "confidence": _confidence_for(rel.strength),
+                "source": rel.source,
+            }
+        )
+    # Person <-> Account ownership: implicit via SocialAccount.owner_person_id.
+    # Surface as edges so consumers see the full graph.
+    for acc in graph.accounts:
+        if acc.owner_person_id:
+            edges.append(
+                {
+                    "from_id": acc.owner_person_id,
+                    "to_id": acc.id,
+                    "kind": "person-account",
+                    "tier": None,
+                    "strength": None,
+                    "cost": None,
+                    "reason": f"owns {acc.platform} account",
+                    "confidence": 1.0,
+                    "source": "csv",
+                }
+            )
+    return edges
+
+
+def _hops_for_path(graph: Graph, path: list[str]) -> list[dict]:
+    hops: list[dict] = []
+    for i in range(1, len(path)):
+        a, b = path[i - 1], path[i]
+        s = graph.strength(a, b)
+        hops.append(
+            {
+                "step": i,
+                "from_id": a,
+                "to_id": b,
+                "from_name": graph.id_to_name.get(a, a),
+                "to_name": graph.id_to_name.get(b, b),
+                "tier": graph.tier(a, b),
+                "strength": s,
+                "cost": graph.edge_cost(a, b),
+                "explanation": graph.reason(a, b),
+                "confidence": _confidence_for(s),
+            }
+        )
+    return hops
+
+
+def _paths_views(graph: Graph, result: dict) -> list[dict]:
+    if result.get("best") is None:
+        return []
+    all_paths = [result["best"], *result.get("alternatives", [])]
+    out: list[dict] = []
+    for rank, p in enumerate(all_paths, start=1):
+        out.append(
+            {
+                "rank": rank,
+                "is_best": rank == 1,
+                "entry_used": p[0],
+                "target": p[-1],
+                "hops_count": max(len(p) - 1, 0),
+                "total_strength": path_total_strength(graph, p),
+                "total_cost": path_total_cost(graph, p),
+                "hops": _hops_for_path(graph, p),
+            }
+        )
+    return out
+
+
+def write_result_json_v2(
+    path: str,
+    graph: Graph,
+    result: dict,
+    entries: list[str] | None = None,
+    target: str | None = None,
+    top_k: int | None = None,
+) -> None:
+    """Phase D structured shape: nodes, edges, identity_clusters, paths."""
+    nodes = _node_views(graph)
+    edges = _edge_views(graph)
+    payload = {
+        "schema_version": 2,
+        "query": {
+            "entries": list(entries or []),
+            "target": target,
+            "top_k": top_k,
+        },
+        "summary": {
+            "reachable": result.get("best") is not None,
+            "people_count": len(graph.id_to_name),
+            "account_count": len(graph.accounts),
+            "person_edge_count": sum(len(v) for v in graph.adjacency.values()) // 2,
+            "edge_count": len(edges),
+            "identity_cluster_count": len(graph.identity_clusters),
+            "merge_count": len(graph.merges),
+            "path_count": len(result.get("alternatives", [])) + (
+                1 if result.get("best") else 0
+            ),
+            "best_hops": result.get("hops"),
+            "best_total_strength": result.get("total_strength"),
+            "best_cost": result.get("cost"),
+        },
+        "nodes": nodes,
+        "edges": edges,
+        "identity_clusters": _identity_clusters_payload(graph),
+        "merges": _merges_payload(graph),
+        "paths": _paths_views(graph, result),
+        "explanation": result.get("explanation"),
     }
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)

@@ -17,10 +17,17 @@ from __future__ import annotations
 
 import sys
 
+import json
 import os
 import tempfile
 
-from warm_intro import build_graph, find_warm_intro, resolve
+from warm_intro import (
+    build_graph,
+    find_warm_intro,
+    resolve,
+    write_result_json,
+    write_result_json_v2,
+)
 
 PEOPLE = "test_people.csv"
 EDGES = "test_edges.csv"
@@ -298,6 +305,74 @@ def main() -> int:
             "explicit direct edge unaffected by derivation",
             g2.tier("x1", "x4") == "direct" and g2.strength("x1", "x4") == 10,
             f"tier={g2.tier('x1', 'x4')} strength={g2.strength('x1', 'x4')}",
+        )
+
+    # ---- 15. Phase D: structured output shape ----------------------------
+    header("15. Structured output shape (v2) + legacy shape both work")
+    g = build_graph(PEOPLE, EDGES)
+    r = find_warm_intro(g, ["Alice", "Bob"], "Zoe", top_k=2)
+    with tempfile.TemporaryDirectory() as td:
+        v2_path = os.path.join(td, "v2.json")
+        legacy_path = os.path.join(td, "legacy.json")
+        write_result_json_v2(
+            v2_path, g, r, entries=["Alice", "Bob"], target="Zoe", top_k=2
+        )
+        write_result_json(legacy_path, g, r)
+
+        v2 = json.load(open(v2_path))
+        legacy = json.load(open(legacy_path))
+
+        # v2 shape: top-level keys
+        v2_keys = set(v2.keys())
+        expected_v2 = {
+            "schema_version", "query", "summary", "nodes", "edges",
+            "identity_clusters", "merges", "paths", "explanation",
+        }
+        check(
+            "v2 has expected top-level keys",
+            expected_v2 <= v2_keys,
+            f"missing: {expected_v2 - v2_keys}",
+        )
+        check(
+            "v2 schema_version is 2",
+            v2.get("schema_version") == 2,
+            f"got {v2.get('schema_version')}",
+        )
+        check(
+            "v2 summary reports reachability",
+            v2["summary"]["reachable"] is True,
+            "expected reachable=True",
+        )
+        check(
+            "v2 nodes include all people in the graph",
+            len([n for n in v2["nodes"] if n["type"] == "person"])
+            == len(g.id_to_name),
+            "person node count mismatch",
+        )
+        check(
+            "v2 paths are ranked, best first",
+            len(v2["paths"]) >= 1
+            and v2["paths"][0]["is_best"] is True
+            and v2["paths"][0]["rank"] == 1,
+            "best path missing or unranked",
+        )
+        first_hop = v2["paths"][0]["hops"][0]
+        check(
+            "v2 hops carry tier, explanation, confidence",
+            {"tier", "explanation", "confidence"} <= set(first_hop.keys()),
+            f"hop keys: {sorted(first_hop.keys())}",
+        )
+
+        # Legacy shape unchanged
+        check(
+            "legacy still has best_path/alternatives keys",
+            "best_path" in legacy and "alternatives" in legacy,
+            f"legacy keys: {sorted(legacy.keys())}",
+        )
+        check(
+            "legacy did NOT gain schema_version",
+            "schema_version" not in legacy,
+            "legacy shape leaked schema_version",
         )
 
     # ---- summary --------------------------------------------------------
