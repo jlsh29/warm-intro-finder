@@ -1,297 +1,2115 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Warm Intro Finder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script type="text/javascript" src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  <script>
+    // Apply saved theme BEFORE first paint so there's no flash.
+    (function () {
+      try {
+        var saved = localStorage.getItem('theme');
+        if (saved === 'light' || saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', saved);
+        }
+      } catch (e) {}
+    })();
+  </script>
   <style>
-    :root {
-      --bg: #0f1419;
-      --panel: #1b2230;
-      --panel-2: #222b3a;
-      --border: #2e3a50;
-      --text: #e6ecf2;
-      --muted: #8a98a9;
-      --accent: #4dabf7;
-      --accent-2: #63e6be;
-      --error: #ff6b6b;
-      --target: #ffa94d;
+    /* ---------- Light theme (default when [data-theme=light]) ---------- */
+    :root, [data-theme="light"] {
+      --canvas: #F7F8FB;
+      --surface: #FFFFFF;
+      --surface-alt: #F8FAFC;
+      --surface-raised: #FFFFFF;
+      --ink: #0F172A;
+      --ink-soft: #334155;
+      --muted: #64748B;
+      --border: #E2E8F0;
+      --border-strong: #CBD5E1;
+      --accent: #4F46E5;
+      --accent-hover: #4338CA;
+      --accent-soft: rgba(79, 70, 229, 0.08);
+      --accent-ring: rgba(79, 70, 229, 0.18);
+      --success: #10B981;
+      --success-soft: rgba(16, 185, 129, 0.12);
+      --warn: #F59E0B;
+      --error: #DC2626;
+      --error-soft: #FEF2F2;
+      --error-border: #FECACA;
+      --warn-bg: #FFFBEB;
+      --warn-border: #FDE68A;
+      --warn-text: #92400E;
+      --check: #059669;
+      --cross: #94A3B8;
+      --body-gradient:
+        radial-gradient(ellipse 80% 50% at 20% 0%, rgba(79, 70, 229, 0.08), transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 10%, rgba(16, 185, 129, 0.07), transparent 60%),
+        linear-gradient(180deg, #EEF2FF 0%, #F0FDFA 100%);
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+      --shadow-lg: 0 20px 40px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);
+      --profile-banner: linear-gradient(135deg, #EEF2FF 0%, #F0FDFA 100%);
+      --profile-border: #C7D2FE;
+      --nav-bg: rgba(255, 255, 255, 0.72);
     }
+
+    /* ---------- Dark theme (default) ---------- */
+    [data-theme="dark"] {
+      --canvas: #0F0F0F;
+      --surface: #1A1A2E;
+      --surface-alt: #15152A;
+      --surface-raised: #22223F;
+      --ink: #F5F5FA;
+      --ink-soft: #D1D5E3;
+      --muted: #9BA3B5;
+      --border: #2A2A45;
+      --border-strong: #3B3B5A;
+      --accent: #818CF8;
+      --accent-hover: #A5B4FC;
+      --accent-soft: rgba(129, 140, 248, 0.12);
+      --accent-ring: rgba(129, 140, 248, 0.28);
+      --success: #34D399;
+      --success-soft: rgba(52, 211, 153, 0.18);
+      --warn: #FBBF24;
+      --error: #F87171;
+      --error-soft: rgba(248, 113, 113, 0.12);
+      --error-border: rgba(248, 113, 113, 0.35);
+      --warn-bg: rgba(251, 191, 36, 0.10);
+      --warn-border: rgba(251, 191, 36, 0.35);
+      --warn-text: #FCD34D;
+      --check: #34D399;
+      --cross: #64748B;
+      --body-gradient:
+        radial-gradient(ellipse 70% 50% at 20% 0%, rgba(129, 140, 248, 0.14), transparent 60%),
+        radial-gradient(ellipse 55% 50% at 90% 10%, rgba(52, 211, 153, 0.10), transparent 60%),
+        linear-gradient(180deg, #0F0F0F 0%, #14142B 100%);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25);
+      --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
+      --profile-banner: linear-gradient(135deg, #1E1B3A 0%, #162434 100%);
+      --profile-border: #3B3B5A;
+      --nav-bg: rgba(15, 15, 15, 0.72);
+    }
+
+    /* ---------- Platform brand colors (same in both themes) ---------- */
+    :root, [data-theme="light"], [data-theme="dark"] {
+      --tw-bg: #000000;       --tw-hover: #1a1a1a;
+      --fc-bg: #8A63D2;       --fc-hover: #7B52C8;
+      --li-bg: #0077B5;       --li-hover: #006399;
+      --db-bg: #00C087;       --db-hover: #00A876;
+    }
+
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
+
     body {
       margin: 0;
-      font-family: -apple-system, Segoe UI, Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-    header {
-      padding: 1.2rem 2rem;
-      border-bottom: 1px solid var(--border);
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    header h1 { margin: 0; font-size: 1.2rem; font-weight: 600; }
-    header .meta { color: var(--muted); font-size: 0.85rem; }
-    main { max-width: 1100px; margin: 0 auto; padding: 2rem; }
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-    }
-    h2 { margin-top: 0; font-size: 1rem; color: var(--muted); font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
-    label { display: block; margin-bottom: 0.3rem; font-size: 0.9rem; color: var(--muted); }
-    select, input[type=text], input[type=number] {
-      width: 100%;
-      padding: 0.55rem 0.7rem;
-      background: var(--panel-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      font-size: 0.95rem;
-      font-family: inherit;
-    }
-    select[multiple] { height: 180px; }
-    select:focus, input:focus { outline: none; border-color: var(--accent); }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    .field { margin-bottom: 1rem; }
-    .hint { color: var(--muted); font-size: 0.8rem; margin-top: 0.3rem; }
-    button {
-      background: var(--accent);
-      color: #08121f;
-      border: 0;
-      padding: 0.65rem 1.5rem;
-      font-size: 0.95rem;
-      font-weight: 600;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    button:hover { background: #74c0fc; }
-    .error {
-      background: rgba(255, 107, 107, 0.1);
-      border: 1px solid var(--error);
-      color: var(--error);
-      padding: 0.8rem 1rem;
-      border-radius: 5px;
-      margin-bottom: 1rem;
-    }
-
-    .summary { color: var(--muted); margin-bottom: 0.6rem; }
-    .summary strong { color: var(--text); }
-    .explanation {
-      color: var(--muted);
-      font-size: 0.88rem;
-      margin-top: 0.6rem;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--ink);
+      background: var(--canvas);
+      background-image: var(--body-gradient);
+      background-attachment: fixed;
+      -webkit-font-smoothing: antialiased;
       line-height: 1.5;
+      transition: background-color .2s, color .2s;
     }
 
-    .chain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.5rem; margin: 0.8rem 0 0.4rem; }
-    .node {
-      background: var(--panel-2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.6rem 0.85rem;
-      min-width: 160px;
-      display: flex; flex-direction: column; justify-content: center;
+    /* ---------- Navbar ---------- */
+    .navbar {
+      background: var(--nav-bg);
+      backdrop-filter: saturate(1.4) blur(10px);
+      -webkit-backdrop-filter: saturate(1.4) blur(10px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
     }
-    .node.entry { border-color: var(--accent); border-width: 2px; }
-    .node.target { border-color: var(--target); border-width: 2px; }
-    .node .name { font-weight: 600; }
-    .node .id { color: var(--muted); font-size: 0.75rem; font-family: ui-monospace, Menlo, monospace; }
-    .node .links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.3rem;
-      margin-top: 0.45rem;
+    .navbar-inner {
+      max-width: 1120px; margin: 0 auto;
+      padding: 0.9rem 1.5rem;
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem;
     }
-    .node .links a {
-      font-size: 0.7rem;
-      font-family: ui-monospace, Menlo, monospace;
-      color: var(--accent);
-      background: rgba(77, 171, 247, 0.08);
-      border: 1px solid rgba(77, 171, 247, 0.3);
-      padding: 0.1rem 0.4rem;
-      border-radius: 3px;
-      text-decoration: none;
-      white-space: nowrap;
+    .brand { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+    .brand-mark {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #6366F1 0%, #14B8A6 100%);
+      display: grid; place-items: center; color: #fff;
+      box-shadow: 0 6px 14px rgba(99, 102, 241, 0.28); flex-shrink: 0;
     }
-    .node .links a:hover {
-      background: rgba(77, 171, 247, 0.18);
-      border-color: var(--accent);
-    }
-    .node .link-pair {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.15rem;
-    }
-    .dm-badge {
-      font-size: 0.65rem;
-      font-family: ui-monospace, Menlo, monospace;
-      padding: 0.1rem 0.3rem;
-      border-radius: 3px;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      white-space: nowrap;
-    }
-    .dm-badge.yes {
-      color: #0a2e16;
-      background: #63e6be;
-      border: 1px solid #2f9e7a;
-    }
-    .dm-badge.no {
-      color: #c0c4cc;
-      background: #2a3344;
-      border: 1px solid #3a4459;
-    }
-    .arrow {
-      align-self: center;
-      color: var(--muted);
-      font-size: 1.2rem;
-      padding: 0 0.1rem;
-      user-select: none;
-    }
-    .path-header { display: flex; align-items: baseline; gap: 0.6rem; }
-    .path-header .tag {
-      background: var(--accent-2);
-      color: #08121f;
-      padding: 0.1rem 0.5rem;
-      border-radius: 3px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-    }
-    .path-header .tag.alt { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
-    .path-block { padding-bottom: 1rem; border-bottom: 1px dashed var(--border); margin-bottom: 1rem; }
-    .path-block:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+    .brand-text { display: flex; flex-direction: column; min-width: 0; }
+    .brand-name { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.015em; color: var(--ink); }
+    .brand-tag { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
 
+    .nav-right { display: flex; align-items: center; gap: 0.7rem; }
+    .dataset-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.78rem; color: var(--ink-soft); background: var(--surface);
+      padding: 0.35rem 0.7rem; border-radius: 999px;
+      border: 1px solid var(--border); font-weight: 500;
+      box-shadow: var(--shadow-sm); white-space: nowrap;
+    }
+    .dataset-badge strong { color: var(--accent); font-weight: 600; }
+    .dataset-badge .dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--success);
+      box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
+    }
+    .theme-toggle {
+      display: inline-grid; place-items: center;
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      cursor: pointer; color: var(--ink-soft); font-family: inherit;
+      box-shadow: var(--shadow-sm);
+      transition: color .15s, border-color .15s, transform .1s;
+    }
+    .theme-toggle:hover { color: var(--accent); border-color: var(--border-strong); }
+    .theme-toggle:active { transform: scale(0.96); }
+    .theme-toggle svg { width: 18px; height: 18px; }
+    [data-theme="dark"] .theme-toggle .sun { display: block; }
+    [data-theme="dark"] .theme-toggle .moon { display: none; }
+    [data-theme="light"] .theme-toggle .sun, :root:not([data-theme="dark"]) .theme-toggle .sun { display: none; }
+    [data-theme="light"] .theme-toggle .moon, :root:not([data-theme="dark"]) .theme-toggle .moon { display: block; }
+
+    /* ---------- Layout ---------- */
+    main { max-width: 1120px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    .page-heading { margin-bottom: 1.5rem; }
+    .page-heading h1 {
+      font-size: 2rem; font-weight: 700; letter-spacing: -0.025em;
+      color: var(--ink); margin: 0 0 0.4rem;
+    }
+    .page-heading p { margin: 0; color: var(--muted); font-size: 1rem; max-width: 56ch; }
+
+    /* ---------- Cards ---------- */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.75rem; margin-bottom: 1.5rem;
+      box-shadow: var(--shadow-md);
+    }
+    .card h2 {
+      margin: 0 0 1.2rem; font-size: 0.75rem; color: var(--muted);
+      font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+
+    /* ---------- Profile banner ---------- */
+    .profile-card { background: var(--profile-banner); border-color: var(--profile-border); }
+    .profile-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .profile-avatar {
+      width: 58px; height: 58px; border-radius: 14px;
+      background: linear-gradient(135deg, #4F46E5, #14B8A6);
+      color: #fff; display: grid; place-items: center;
+      font-weight: 700; font-size: 1.35rem; letter-spacing: -0.02em;
+      box-shadow: 0 8px 16px rgba(79, 70, 229, 0.25); flex-shrink: 0;
+    }
+    .profile-main { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; min-width: 0; }
+    .profile-kicker {
+      font-size: 0.7rem; font-weight: 600; color: var(--accent);
+      letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    .profile-name { font-size: 1.3rem; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
+    .profile-handles { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.3rem; }
+    .profile-actions { display: flex; gap: 0.5rem; }
+    .btn-ghost {
+      background: var(--surface); color: var(--ink-soft);
+      border: 1px solid var(--border-strong);
+      padding: 0.6rem 1.1rem; border-radius: 10px;
+      font-size: 0.88rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      transition: all .15s;
+    }
+    .btn-ghost:hover { background: var(--surface-alt); border-color: var(--muted); color: var(--ink); }
+    .profile-empty { color: var(--muted); font-style: italic; font-size: 0.92rem; }
+    .profile-form { display: none; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px dashed var(--profile-border); }
+    .profile-form.open { display: block; }
+    .profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.9rem; }
+
+    /* ---------- Form ---------- */
+    label {
+      display: block; margin-bottom: 0.4rem;
+      font-size: 0.85rem; color: var(--ink-soft); font-weight: 500;
+    }
+    select, input[type=text], input[type=number], input[type=search], textarea {
+      width: 100%; padding: 0.7rem 0.95rem;
+      background: var(--surface); color: var(--ink);
+      border: 1px solid var(--border-strong); border-radius: 10px;
+      font-size: 0.92rem; font-family: inherit;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+    [data-theme="dark"] input, [data-theme="dark"] textarea, [data-theme="dark"] select {
+      background: var(--surface-raised);
+    }
+    select:hover, input:hover, textarea:hover { border-color: var(--muted); }
+    select:focus, input:focus, textarea:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+    .field { margin-bottom: 1rem; }
+    .field:last-child { margin-bottom: 0; }
+    .hint { color: var(--muted); font-size: 0.78rem; margin-top: 0.35rem; }
+
+    /* Target search */
+    .search-wrap { position: relative; flex: 1; min-width: 0; }
+    .search-row {
+      display: flex; gap: 0.75rem; align-items: stretch;
+    }
+    .search-row input[type=search] { height: 44px; }
+    .search-row button[type=submit] {
+      height: 44px; padding: 0 1.4rem; align-self: stretch;
+      flex-shrink: 0;
+    }
+    .suggestions {
+      position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+      background: var(--surface-raised); border: 1px solid var(--border-strong);
+      border-radius: 12px; box-shadow: var(--shadow-lg);
+      max-height: 320px; overflow-y: auto; z-index: 20;
+      display: none;
+    }
+    .suggestions.open { display: block; }
+    .sugg-item {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.6rem; padding: 0.65rem 0.95rem; cursor: pointer;
+      border-bottom: 1px solid var(--border);
+    }
+    .sugg-item:last-child { border-bottom: 0; }
+    .sugg-item:hover, .sugg-item.active {
+      background: var(--accent-soft);
+    }
+    .sugg-name { font-size: 0.92rem; color: var(--ink); font-weight: 500; }
+    .sugg-handles { font-size: 0.76rem; color: var(--muted); margin-top: 2px; font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace; }
+    .degree-chip {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; padding: 0.22rem 0.55rem; border-radius: 999px;
+      white-space: nowrap;
+      background: var(--accent-soft); color: var(--accent);
+    }
+    .degree-chip.d0 { background: rgba(52, 211, 153, 0.18); color: var(--success); }
+    .degree-chip.d1 { background: rgba(129, 140, 248, 0.18); color: var(--accent); }
+    .degree-chip.d2 { background: rgba(245, 158, 11, 0.18); color: var(--warn); }
+    .degree-chip.d3 { background: rgba(248, 113, 113, 0.18); color: var(--error); }
+    .degree-chip.dx { background: var(--surface-alt); color: var(--muted); }
+
+    button[type=submit], .btn-primary {
+      background: var(--accent); color: #fff; border: 0;
+      padding: 0.75rem 1.4rem; font-size: 0.92rem; font-weight: 600;
+      border-radius: 10px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+      box-shadow: 0 4px 10px rgba(79, 70, 229, 0.25);
+      transition: background .15s, transform .1s, box-shadow .15s;
+      font-family: inherit; text-decoration: none; white-space: nowrap;
+    }
+    button[type=submit]:hover, .btn-primary:hover {
+      background: var(--accent-hover); transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(79, 70, 229, 0.3);
+    }
+    button[type=submit] svg, .btn-primary svg { width: 16px; height: 16px; }
+
+    /* ---------- Alerts ---------- */
+    .error {
+      background: var(--error-soft); border: 1px solid var(--error-border);
+      color: var(--error); padding: 0.9rem 1.1rem; border-radius: 12px;
+      margin-bottom: 1.25rem; font-size: 0.9rem; font-weight: 500;
+    }
     .unreachable {
-      background: rgba(255, 169, 77, 0.1);
-      border: 1px solid var(--target);
-      color: var(--target);
-      padding: 1rem;
-      border-radius: 6px;
+      background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text);
+      padding: 1rem 1.2rem; border-radius: 12px; font-size: 0.92rem;
+    }
+
+    /* ---------- Ranked paths ---------- */
+    @keyframes slideFadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .result-wrap { animation: slideFadeIn .35s ease-out both; }
+    @media (prefers-reduced-motion: reduce) { .result-wrap { animation: none; } }
+
+    .summary { color: var(--muted); font-size: 0.92rem; margin-bottom: 0.9rem; }
+    .summary strong { color: var(--ink); font-weight: 600; }
+    .explanation {
+      color: var(--muted); font-size: 0.85rem;
+      padding-top: 1rem; margin-top: 1.25rem;
+      border-top: 1px solid var(--border); line-height: 1.6;
+    }
+
+    .path-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.25rem; margin-bottom: 1rem;
+      box-shadow: var(--shadow-sm);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .path-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
+    .path-card.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring), var(--shadow-md);
+    }
+
+    .path-header-row {
+      display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+      margin-bottom: 0.9rem;
+    }
+    .rank-badge {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      padding: 0.35rem 0.8rem; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; white-space: nowrap;
+      background: var(--surface-alt); color: var(--ink-soft);
+      border: 1px solid var(--border);
+    }
+    .rank-badge .emoji { font-size: 1rem; }
+    .rank-badge.r1 { background: linear-gradient(135deg, #FDE68A, #F59E0B); color: #78350F; border-color: #F59E0B; }
+    .rank-badge.r2 { background: linear-gradient(135deg, #E2E8F0, #94A3B8); color: #1E293B; border-color: #94A3B8; }
+    .rank-badge.r3 { background: linear-gradient(135deg, #FED7AA, #F97316); color: #7C2D12; border-color: #F97316; }
+
+    .path-stats { color: var(--muted); font-size: 0.85rem; }
+    .path-stats strong { color: var(--ink); font-weight: 600; }
+
+    .score-chip {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.3rem 0.7rem; border-radius: 999px;
+      background: var(--accent-soft); color: var(--accent);
+      font-size: 0.78rem; font-weight: 700;
+      border: 1px solid var(--accent-ring);
+    }
+
+    .select-path-btn {
+      margin-left: auto; background: var(--surface); color: var(--accent);
+      border: 1px solid var(--accent); padding: 0.5rem 1rem;
+      font-size: 0.85rem; font-weight: 600; border-radius: 9px;
+      cursor: pointer; font-family: inherit;
+      transition: background .15s, color .15s;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+    }
+    .select-path-btn:hover { background: var(--accent); color: #fff; }
+    .path-card.selected .select-path-btn { background: var(--accent); color: #fff; }
+    .select-path-btn svg { width: 14px; height: 14px; }
+
+    /* ---------- Chain of person cards ---------- */
+    .chain-label {
+      font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace;
+      font-size: 0.82rem; color: var(--muted); margin-bottom: 0.5rem;
+      word-break: break-all;
+    }
+    .chain-label .node-ref { color: var(--ink); font-weight: 600; }
+    .chain-label .sep { color: var(--muted); margin: 0 0.3rem; }
+
+    .chain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.6rem; }
+    .node {
+      position: relative; background: var(--surface-raised); border: 1px solid var(--border);
+      border-radius: 14px; padding: 0.95rem 1.05rem; min-width: 200px;
+      flex: 0 1 auto; display: flex; flex-direction: column;
+      box-shadow: var(--shadow-sm);
+      transition: transform .15s, box-shadow .15s, border-color .15s;
+    }
+    .node:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+    .node.entry  { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring), var(--shadow-sm); }
+    .node.target { border-color: var(--warn);   box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22), var(--shadow-sm); }
+    .node-head { display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.3rem; }
+    .avatar {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, rgba(129, 140, 248, 0.25), rgba(52, 211, 153, 0.25));
+      color: var(--accent);
+      display: grid; place-items: center; font-weight: 600; font-size: 0.85rem;
+      flex-shrink: 0; letter-spacing: -0.01em;
+    }
+    .node.entry  .avatar { background: linear-gradient(135deg, #4F46E5, #6366F1); color: #fff; }
+    .node.target .avatar { background: linear-gradient(135deg, #F59E0B, #FB923C); color: #fff; }
+    .node .name-col { min-width: 0; display: flex; flex-direction: column; }
+    .node .name {
+      font-weight: 600; font-size: 0.95rem; color: var(--ink); line-height: 1.25;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .node .handle {
+      color: var(--muted); font-size: 0.74rem;
+      font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace; margin-top: 1px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;
+    }
+    .node .degree-row {
+      display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.45rem;
+    }
+
+    /* ---------- Social badges ---------- */
+    .links { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; }
+    .link-pair { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .social-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.73rem; font-weight: 600; color: #fff;
+      padding: 0.34rem 0.65rem; border-radius: 999px;
+      text-decoration: none; white-space: nowrap; line-height: 1;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+      transition: background .15s, transform .1s;
+    }
+    .social-badge:hover { transform: translateY(-1px); }
+    .social-badge svg { width: 13px; height: 13px; flex-shrink: 0; fill: currentColor; }
+    .social-badge.twitter   { background: var(--tw-bg); }
+    .social-badge.twitter:hover   { background: var(--tw-hover); }
+    .social-badge.farcaster { background: var(--fc-bg); }
+    .social-badge.farcaster:hover { background: var(--fc-hover); }
+    .social-badge.linkedin  { background: var(--li-bg); }
+    .social-badge.linkedin:hover  { background: var(--li-hover); }
+    .social-badge.wallet    { background: var(--db-bg); }
+    .social-badge.wallet:hover    { background: var(--db-hover); }
+    .social-badge.small { font-size: 0.68rem; padding: 0.25rem 0.55rem; }
+    .social-badge.small svg { width: 11px; height: 11px; }
+
+    .dm-badge {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 0.22rem 0.45rem; border-radius: 999px; white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 0.25rem;
+    }
+    .dm-badge::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; }
+    .dm-badge.yes { background: rgba(16, 185, 129, 0.18); color: var(--success); }
+    .dm-badge.yes::before { background: var(--success); }
+    .dm-badge.no  { background: var(--surface-alt); color: var(--muted); }
+    .dm-badge.no::before { background: var(--muted); }
+
+    /* ---------- Arrow chevron (now strength-coloured + pill) ---------- */
+    .arrow {
+      align-self: center; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 0.25rem; min-width: 34px;
+      color: var(--border-strong); flex-shrink: 0; user-select: none;
+    }
+    .arrow svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+    .arrow.very-strong { color: #10B981; }
+    .arrow.strong      { color: #3B82F6; }
+    .arrow.moderate    { color: #F59E0B; }
+    .arrow.weak        { color: #94A3B8; }
+
+    .strength-pill {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 0.15rem 0.45rem; border-radius: 999px;
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em;
+      white-space: nowrap; border: 1px solid var(--border);
+      background: var(--surface); color: var(--ink-soft);
+    }
+    .strength-pill.very-strong { color: #059669; border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.12); }
+    .strength-pill.strong      { color: #2563EB; border-color: rgba(59, 130, 246, 0.35); background: rgba(59, 130, 246, 0.12); }
+    .strength-pill.moderate    { color: #B45309; border-color: rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.12); }
+    .strength-pill.weak        { color: var(--muted); border-color: var(--border); background: var(--surface-alt); }
+
+    /* ---------- Interaction icon strip (per-node) ---------- */
+    .interaction-strip {
+      display: flex; flex-wrap: wrap; gap: 0.35rem;
+      margin-top: 0.6rem;
+    }
+    .interaction-chip {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 0.18rem 0.45rem; border-radius: 999px;
+      font-size: 0.7rem; font-weight: 600;
+      background: var(--surface-alt); color: var(--ink-soft);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .interaction-chip .count { color: var(--ink); font-weight: 700; }
+    .interaction-score-chip {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.2rem 0.55rem; border-radius: 999px;
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;
+      background: var(--accent-soft); color: var(--accent);
+      border: 1px solid var(--accent-ring);
+      cursor: pointer; font-family: inherit;
+    }
+    .interaction-score-chip:hover { background: var(--accent); color: #fff; }
+
+    /* ---------- Interaction details modal ---------- */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55);
+      display: none; align-items: center; justify-content: center;
+      z-index: 300; padding: 1rem;
+      opacity: 0; transition: opacity .2s;
+    }
+    .modal-backdrop.open { display: flex; opacity: 1; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.5rem;
+      max-width: 520px; width: 100%; max-height: 85vh; overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+      transform: translateY(12px); transition: transform .25s;
+    }
+    .modal-backdrop.open .modal { transform: translateY(0); }
+    .modal-head {
+      display: flex; align-items: flex-start; gap: 0.9rem; margin-bottom: 1rem;
+    }
+    .modal-head .avatar { width: 46px; height: 46px; font-size: 1.1rem; border-radius: 12px; }
+    .modal-head .title { flex: 1; min-width: 0; }
+    .modal-head .title .name { font-weight: 700; font-size: 1.1rem; color: var(--ink); }
+    .modal-head .title .sub {
+      font-size: 0.8rem; color: var(--muted);
+      font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace;
+    }
+    .modal-close {
+      background: transparent; border: 0; cursor: pointer; padding: 0.3rem;
+      color: var(--muted); border-radius: 8px; font-family: inherit; font-size: 1.1rem;
+    }
+    .modal-close:hover { color: var(--ink); background: var(--surface-alt); }
+
+    .modal-section { margin-bottom: 1rem; }
+    .modal-section h4 {
+      margin: 0 0 0.5rem; font-size: 0.72rem; font-weight: 700;
+      color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .modal-score-big {
+      display: flex; align-items: baseline; gap: 0.5rem;
+      font-size: 1rem; color: var(--ink);
+    }
+    .modal-score-big .big-num {
+      font-size: 2rem; font-weight: 700; color: var(--accent); letter-spacing: -0.03em;
+    }
+    .modal-section .kv {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 0.4rem 0.7rem;
+      font-size: 0.88rem; color: var(--ink-soft); align-items: center;
+    }
+    .modal-section .kv .ico { font-size: 1rem; }
+    .modal-section .kv .label { color: var(--muted); }
+    .modal-section .kv .count { color: var(--ink); font-weight: 700; text-align: right; }
+    .modal-section .platform-head {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin-top: 0.8rem; margin-bottom: 0.35rem;
+    }
+    .modal-section .platform-head:first-child { margin-top: 0; }
+    .modal-platform-mutual {
+      display: flex; flex-wrap: wrap; gap: 0.4rem;
+    }
+    .modal-last {
+      font-size: 0.85rem; color: var(--ink-soft);
+    }
+    .modal-last .date { color: var(--ink); font-weight: 600; }
+
+    /* ---------- Mutual status panel ---------- */
+    .mutual-panels { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .mutual-panel {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.8rem;
+      align-items: center;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.55rem 0.8rem;
+    }
+    .mutual-pair {
+      font-size: 0.82rem; color: var(--ink-soft);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .mutual-pair strong { color: var(--ink); font-weight: 600; }
+    .mutual-pair .dot-sep { color: var(--muted); margin: 0 0.25rem; }
+    .mutual-platforms { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .mp-chip {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.22rem 0.55rem; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+      border: 1px solid var(--border);
+    }
+    .mp-chip.mutual   { background: var(--success-soft); color: var(--check); border-color: rgba(52, 211, 153, 0.35); }
+    .mp-chip.missing  { background: var(--surface); color: var(--muted); }
+    .mp-chip::before {
+      content: ""; width: 12px; height: 12px; display: inline-grid; place-items: center;
+      font-size: 10px; line-height: 1; font-weight: 900;
+    }
+    .mp-chip.mutual::before { content: "✔"; color: var(--check); }
+    .mp-chip.missing::before { content: "✖"; color: var(--cross); }
+    .mp-chip svg { width: 11px; height: 11px; fill: currentColor; }
+
+    /* ---------- Outreach ---------- */
+    .outreach-card { display: none; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px dashed var(--border); }
+    .outreach-card.active { display: block; animation: slideFadeIn .3s ease-out both; }
+
+    .option-kicker {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 0.3rem;
+    }
+    .option-title { font-size: 1rem; font-weight: 700; color: var(--ink); margin-bottom: 0.3rem; letter-spacing: -0.01em; }
+    .option-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.9rem; }
+
+    /* ---- Outreach status tracker ---- */
+    .status-tracker {
+      display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.8rem 1rem; margin-bottom: 1rem;
+    }
+    .status-tracker .st-label {
+      font-size: 0.78rem; font-weight: 600; color: var(--muted);
+      letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.75rem; border-radius: 999px;
+      font-size: 0.78rem; font-weight: 700;
+      border: 1px solid var(--border);
+      background: var(--surface); color: var(--muted);
+      transition: all .2s;
+    }
+    .status-pill::before {
+      content: ""; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+    }
+    .status-pill.visited { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-ring); }
+    .status-pill.visited::before { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .status-pill.sent { background: var(--success-soft); color: var(--success); border-color: rgba(52, 211, 153, 0.35); }
+    .status-pill.sent::before { background: var(--success); box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.25); }
+
+    .status-actions { display: flex; gap: 0.5rem; margin-left: auto; flex-wrap: wrap; }
+    .track-btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.5rem 0.9rem; border-radius: 9px;
+      font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+      background: var(--surface); color: var(--ink-soft);
+      border: 1px solid var(--border-strong);
+      transition: all .15s;
+    }
+    .track-btn:hover { border-color: var(--muted); color: var(--ink); }
+    .track-btn .checkbox {
+      width: 16px; height: 16px; border: 1.5px solid var(--border-strong);
+      border-radius: 4px; display: grid; place-items: center;
+      flex-shrink: 0; transition: all .15s;
+    }
+    .track-btn .checkbox svg { width: 12px; height: 12px; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; fill: none; opacity: 0; }
+    .track-btn.active { border-color: var(--accent); color: var(--accent); }
+    .track-btn.active .checkbox { background: var(--accent); border-color: var(--accent); }
+    .track-btn.active .checkbox svg { opacity: 1; }
+    .track-btn.active.sent { border-color: var(--success); color: var(--success); }
+    .track-btn.active.sent .checkbox { background: var(--success); border-color: var(--success); }
+
+    /* Node-level status badge (on target card) */
+    .node-status-badge {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.2rem 0.5rem; border-radius: 999px;
+      font-size: 0.64rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; margin-top: 0.35rem; width: fit-content;
+      background: var(--surface-alt); color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .node-status-badge.visited { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-ring); }
+    .node-status-badge.sent { background: var(--success-soft); color: var(--success); border-color: rgba(52, 211, 153, 0.35); }
+    .node-status-badge::before {
+      content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+    }
+
+    .msg-area {
+      width: 100%; min-height: 110px; resize: vertical; padding: 0.7rem 0.85rem;
+      border: 1px solid var(--border-strong); border-radius: 10px;
+      font-family: inherit; font-size: 0.88rem; color: var(--ink); line-height: 1.5;
+      background: var(--surface-raised);
+    }
+
+    .msg-actions {
+      display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.6rem; align-items: center;
+    }
+    .msg-actions .spacer { flex: 1; }
+
+    .copy-btn, .open-btn, .step-btn {
+      padding: 0.55rem 0.95rem; font-size: 0.82rem; font-weight: 600;
+      border-radius: 9px; cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      transition: all .15s; text-decoration: none; border: 1px solid transparent;
+    }
+    .copy-btn { background: var(--surface); color: var(--ink-soft); border-color: var(--border-strong); }
+    .copy-btn:hover { background: var(--surface-alt); border-color: var(--muted); color: var(--ink); }
+    .copy-btn.copied { background: var(--success); color: #fff; border-color: var(--success); }
+    .open-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .open-btn:hover { background: var(--accent-hover); }
+    .open-btn svg { width: 13px; height: 13px; }
+
+    .step-btn.waiting  { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-border); }
+    .step-btn.agreed   { background: var(--success); color: #fff; border-color: var(--success); }
+    .step-btn.agreed:hover { background: #0ea77a; }
+    .step-btn:disabled { cursor: not-allowed; opacity: 0.6; }
+
+    /* ---- Send Warm Intro master CTA + collapsible platforms ---- */
+    .send-intro-btn {
+      width: 100%; padding: 0.95rem 1.2rem; border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), #14B8A6);
+      color: #fff; border: 0; cursor: pointer;
+      font-family: inherit; font-size: 0.98rem; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.55rem;
+      box-shadow: 0 6px 16px rgba(79, 70, 229, 0.28);
+      transition: transform .1s, box-shadow .15s, filter .15s;
+      letter-spacing: -0.01em;
+    }
+    .send-intro-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(79, 70, 229, 0.38); filter: brightness(1.05); }
+    .send-intro-btn .chev {
+      transition: transform .25s ease; width: 14px; height: 14px;
+    }
+    .send-intro-btn.open .chev { transform: rotate(180deg); }
+
+    .platforms-collapse {
+      overflow: hidden; max-height: 0;
+      transition: max-height .35s ease, margin-top .25s, opacity .25s;
+      opacity: 0; margin-top: 0;
+    }
+    .platforms-collapse.open {
+      max-height: 4000px; opacity: 1; margin-top: 1rem;
+    }
+
+    /* Per-platform tab (now collapsed by default, individually toggled) */
+    .platform-tab {
+      display: flex; flex-direction: column; gap: 0.6rem;
+      padding: 0.7rem 0.85rem; border: 1px solid var(--border);
+      border-radius: 10px; background: var(--surface-raised); margin-bottom: 0.6rem;
+    }
+    .platform-tab:last-child { margin-bottom: 0; }
+    .platform-tab-head {
+      display: flex; align-items: center; gap: 0.55rem;
+      justify-content: space-between; flex-wrap: wrap;
+    }
+    .platform-tab-head .handle {
+      color: var(--muted); font-size: 0.8rem;
+      font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace;
+    }
+    .platform-tab-body {
+      overflow: hidden; max-height: 0;
+      transition: max-height .3s ease, opacity .2s;
+      opacity: 0;
+    }
+    .platform-tab.open .platform-tab-body { max-height: 800px; opacity: 1; }
+    .platform-tab-expand {
+      color: var(--muted); cursor: pointer; padding: 0.3rem 0.6rem;
+      border-radius: 8px; border: 1px solid var(--border); background: transparent;
+      font-family: inherit; font-size: 0.76rem; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      transition: color .15s, border-color .15s;
+    }
+    .platform-tab-expand:hover { color: var(--ink); border-color: var(--border-strong); }
+    .platform-tab-expand .chev { width: 12px; height: 12px; transition: transform .2s; }
+    .platform-tab.open .platform-tab-expand .chev { transform: rotate(180deg); }
+
+    /* ---- Mark as Sent button ---- */
+    .mark-sent-btn {
+      padding: 0.55rem 0.95rem; font-size: 0.82rem; font-weight: 600;
+      border-radius: 9px; cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: var(--surface); color: var(--success);
+      border: 1px solid rgba(52, 211, 153, 0.45);
+      transition: all .15s;
+    }
+    .mark-sent-btn:hover { background: var(--success-soft); }
+    .mark-sent-btn.done {
+      background: var(--success); color: #fff; border-color: var(--success);
+    }
+    .mark-sent-btn svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ---- In-system composer ---- */
+    .in-system-composer {
+      margin-top: 1.5rem; padding: 1.2rem;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .in-system-composer h3 {
+      margin: 0 0 0.25rem; font-size: 1rem; color: var(--ink);
+      font-weight: 700; letter-spacing: -0.01em;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .in-system-composer .h3-sub {
+      margin: 0 0 1rem; font-size: 0.84rem; color: var(--muted);
+    }
+    .composer-grid {
+      display: grid; grid-template-columns: 80px 1fr; gap: 0.6rem 0.8rem;
+      align-items: center; margin-bottom: 0.8rem;
+    }
+    .composer-grid label {
+      margin: 0; font-size: 0.78rem; color: var(--muted); font-weight: 600;
+      text-align: right;
+    }
+    .composer-grid input[readonly] {
+      background: var(--surface); color: var(--ink); cursor: default;
+      font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace;
+      font-size: 0.86rem;
+    }
+    .composer-grid .full { grid-column: 1 / -1; }
+    .composer-message {
+      min-height: 110px; resize: vertical;
+    }
+    .composer-send {
+      margin-top: 0.6rem; display: flex; justify-content: flex-end;
+    }
+    .composer-send button {
+      background: var(--accent); color: #fff; border: 0;
+      padding: 0.7rem 1.4rem; border-radius: 10px;
+      font-family: inherit; font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem;
+      box-shadow: 0 4px 10px rgba(79, 70, 229, 0.25);
+      transition: transform .1s, background .15s;
+    }
+    .composer-send button:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .composer-send button svg { width: 14px; height: 14px; }
+
+    /* ---- Pending Messages list ---- */
+    .pending-card {
+      margin-top: 1.25rem; padding: 1rem 1.1rem;
+      background: var(--surface-raised); border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .pending-card h4 {
+      margin: 0 0 0.7rem; font-size: 0.78rem; font-weight: 700;
+      color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .pending-empty { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+    .pending-item {
+      padding: 0.7rem 0.85rem; background: var(--surface-alt);
+      border: 1px solid var(--border); border-radius: 10px;
+      margin-bottom: 0.5rem;
+    }
+    .pending-item:last-child { margin-bottom: 0; }
+    .pending-head {
+      display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+      margin-bottom: 0.4rem; font-size: 0.82rem;
+    }
+    .pending-head .pm-to, .pending-head .pm-from { color: var(--ink); font-weight: 600; }
+    .pending-head .pm-arrow { color: var(--muted); }
+    .pending-head .pm-time { color: var(--muted); font-size: 0.76rem; margin-left: auto; }
+    .pending-status {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.18rem 0.5rem; border-radius: 999px;
+      font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      background: var(--warn-bg); color: var(--warn-text);
+      border: 1px solid var(--warn-border);
+    }
+    .pending-status::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--warn); }
+    .pending-body {
+      font-size: 0.85rem; color: var(--ink-soft); line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    /* ---- Toast notification ---- */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; max-width: 340px;
+      padding: 0.85rem 1.1rem; border-radius: 12px;
+      background: var(--success); color: #fff;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+      font-size: 0.9rem; font-weight: 600;
+      transform: translateY(100px); opacity: 0;
+      transition: transform .3s ease, opacity .3s ease;
+      z-index: 200; pointer-events: none;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    /* ---------- Not found state ---------- */
+    .notfound-card {
+      text-align: center; padding: 2rem 1.5rem;
+      background: var(--surface); border: 1px dashed var(--border-strong);
+    }
+    .notfound-card svg { width: 44px; height: 44px; color: var(--muted); margin-bottom: 0.7rem; }
+    .notfound-card h3 { margin: 0 0 0.4rem; color: var(--ink); font-size: 1.1rem; font-weight: 700; }
+    .notfound-card p { margin: 0; color: var(--muted); font-size: 0.9rem; max-width: 48ch; margin: 0 auto; }
+    .notfound-card .query {
+      display: inline-block; padding: 0.2rem 0.5rem; border-radius: 6px;
+      background: var(--surface-alt); color: var(--ink); font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace;
+      font-size: 0.85rem; margin: 0 0.15rem;
+    }
+
+    /* ---------- Stats dashboard ---------- */
+    .stats-dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.7rem; margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 0.9rem 1rem;
+      display: flex; flex-direction: column; gap: 0.25rem;
+      box-shadow: var(--shadow-sm);
+      transition: transform .15s, border-color .15s;
+    }
+    .stat-card:hover { transform: translateY(-1px); border-color: var(--border-strong); }
+    .stat-card .stat-head {
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .stat-card .stat-icon { font-size: 1.2rem; }
+    .stat-card .stat-value {
+      font-size: 1.5rem; font-weight: 700; color: var(--ink);
+      letter-spacing: -0.02em; line-height: 1;
+    }
+    .stat-card .stat-label {
+      font-size: 0.68rem; font-weight: 600; color: var(--muted);
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .stat-card.accent .stat-value { color: var(--accent); }
+    .stat-card.strong .stat-value { color: var(--success); }
+    .stat-card.moderate .stat-value { color: #2563EB; }
+
+    /* ---------- Graph visualization ---------- */
+    .graph-card { padding-bottom: 1rem; }
+    .graph-head {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 0.5rem; margin-bottom: 0.8rem; flex-wrap: wrap;
+    }
+    .graph-head h2 { margin: 0; }
+    .graph-toggle {
+      padding: 0.45rem 0.9rem; border-radius: 9px;
+      background: var(--surface); color: var(--ink-soft);
+      border: 1px solid var(--border-strong); cursor: pointer;
+      font-family: inherit; font-size: 0.8rem; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      transition: all .15s;
+    }
+    .graph-toggle:hover { border-color: var(--muted); color: var(--ink); }
+    .graph-toggle svg { width: 13px; height: 13px; transition: transform .2s; }
+    .graph-toggle.collapsed svg { transform: rotate(-90deg); }
+    .graph-container {
+      width: 100%; height: 420px; border-radius: 12px;
+      border: 1px solid var(--border); background: var(--surface-alt);
+      overflow: hidden;
+      transition: height .3s ease, margin .25s, border-width .1s;
+    }
+    .graph-container.hidden {
+      height: 0; border-width: 0; margin: 0;
+    }
+    .graph-legend {
+      display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 0.7rem;
+      font-size: 0.75rem; color: var(--muted);
+    }
+    .graph-legend .swatch {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+    }
+    .graph-legend .dot {
+      width: 12px; height: 3px; border-radius: 2px; display: inline-block;
+    }
+    .graph-legend .dot.very-strong { background: #10B981; }
+    .graph-legend .dot.strong      { background: #3B82F6; }
+    .graph-legend .dot.moderate    { background: #F59E0B; }
+    .graph-legend .dot.weak        { background: #94A3B8; }
+
+    /* ---------- Quick-stats bar ---------- */
+    .quick-stats {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 0.8rem 1.2rem; margin-bottom: 1rem;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1.1rem;
+    }
+    .quick-stat {
+      display: flex; flex-direction: column; gap: 0.2rem; min-width: 0;
+    }
+    .quick-stat .qlabel {
+      font-size: 0.66rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .quick-stat .qvalue {
+      font-size: 0.9rem; color: var(--ink); font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .quick-stat .qvalue .num { color: var(--accent); }
+    .quick-stat.strongest .qvalue .num { color: var(--success); }
+    .quick-stat.weakest   .qvalue .num { color: var(--muted); }
+    .quick-stat.rec .qvalue {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+    }
+
+    /* ---------- Path-card collapse (chain+outreach hidden until Select) ---------- */
+    .path-expanded {
+      max-height: 0; overflow: hidden; opacity: 0;
+      transition: max-height .4s ease, opacity .25s ease,
+                  margin-top .25s ease, padding-top .25s ease;
+      margin-top: 0; padding-top: 0;
+    }
+    .path-card.selected .path-expanded {
+      max-height: 10000px; opacity: 1;
+      margin-top: 0.9rem; padding-top: 0.9rem;
+      border-top: 1px dashed var(--border);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .path-expanded { transition: none; }
+    }
+
+    /* ---------- Compact person card (details hidden until clicked) ---------- */
+    .node { cursor: pointer; }
+    .node .name { transition: opacity .15s; }
+    .node:not(.expanded) .name,
+    .node:not(.expanded) .degree-row,
+    .node:not(.expanded) .node-status-badge,
+    .node:not(.expanded) .interaction-strip .interaction-chip {
+      display: none;
+    }
+    .node.expanded { cursor: default; }
+    /* Expand affordance: a tiny chevron in the top-right corner. */
+    .node .expand-hint {
+      position: absolute; top: 0.5rem; right: 0.55rem;
+      color: var(--muted); font-size: 0.72rem; font-weight: 700;
+      opacity: 0.7; transition: opacity .15s, transform .2s;
+      pointer-events: none;
+    }
+    .node:hover .expand-hint { opacity: 1; }
+    .node.expanded .expand-hint { transform: rotate(180deg); }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 720px) {
+      main { padding: 1.5rem 1rem 3rem; }
+      .page-heading h1 { font-size: 1.6rem; }
+      .card { padding: 1.25rem; border-radius: 14px; }
+      .search-field-row { grid-template-columns: 1fr; }
+      .search-field-row button[type=submit] { width: 100%; }
+      .chain { flex-direction: column; align-items: stretch; }
+      .node { min-width: 0; width: 100%; }
+      .arrow svg { transform: rotate(90deg); }
+      .navbar-inner { padding: 0.75rem 1rem; }
+      .brand-tag { display: none; }
+      .dataset-badge { padding: 0.3rem 0.55rem; font-size: 0.72rem; }
+      .path-header-row { gap: 0.5rem; }
+      .select-path-btn { margin-left: 0; width: 100%; justify-content: center; }
+      .profile-row { flex-direction: column; align-items: flex-start; }
+      .profile-actions { width: 100%; }
+      .btn-ghost { width: 100%; justify-content: center; }
+      .mutual-panel { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Warm Intro Finder</h1>
-    <div class="meta">{{ dataset.count }} people · {{ dataset.people }} / {{ dataset.edges }}</div>
-  </header>
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">Warm Intro</span>
+          <span class="brand-tag">Find the shortest path to anyone in your network</span>
+        </div>
+      </div>
+      <div class="nav-right">
+        <div class="dataset-badge" title="{{ dataset.people }} / {{ dataset.edges }}">
+          <span class="dot" aria-hidden="true"></span>
+          <strong>{{ dataset.count }}</strong>&nbsp;people
+        </div>
+        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
 
   <main>
-    {% if error %}
-      <div class="error">{{ error }}</div>
-    {% endif %}
-
-    <form method="post" action="/search" class="card">
-      <h2>Query</h2>
-
-      <div class="row">
-        <div class="field">
-          <label for="entries">Entry points (hold Ctrl/Cmd to pick multiple)</label>
-          <select id="entries" name="entries" multiple>
-            {% for p in people %}
-              <option value="{{ p.id }}" {% if p.id in form.get('entries', []) %}selected{% endif %}>{{ p.label }}</option>
-            {% endfor %}
-          </select>
-          <div class="hint">People you already have access to.</div>
-        </div>
-
-        <div class="field">
-          <label for="target">Target</label>
-          <select id="target" name="target">
-            <option value="">— pick a person —</option>
-            {% for p in people %}
-              <option value="{{ p.id }}" {% if form.get('target') == p.id %}selected{% endif %}>{{ p.label }}</option>
-            {% endfor %}
-          </select>
-          <div class="hint">Person you want to reach.</div>
-
-          <label for="entries_free" style="margin-top: 1rem;">Or type entry names/ids (comma-separated)</label>
-          <input type="text" id="entries_free" name="entries_free" value="{{ form.get('entries_free', '') }}" placeholder="e.g. p001, Vera Okafor">
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="field">
-          <label for="top_k">Top-k paths</label>
-          <input type="number" id="top_k" name="top_k" min="1" max="20" value="{{ form.get('top_k', 3) }}">
-        </div>
-        <div class="field" style="display: flex; align-items: flex-end; justify-content: flex-end;">
-          <button type="submit">Find warm path</button>
-        </div>
-      </div>
-    </form>
-
-    {% if result %}
-      <div class="card">
-        <h2>Result</h2>
-        {% if not result.reachable %}
-          <div class="unreachable">{{ result.explanation }}</div>
-        {% else %}
-          <div class="summary">
-            Shortest path: <strong>{{ result.hops }} hop{{ '' if result.hops == 1 else 's' }}</strong>
-            · via <strong>{{ result.entry_used.name }}</strong>
-            {% if result.alternatives %}· {{ result.alternatives|length }} alternative{{ '' if result.alternatives|length == 1 else 's' }}{% endif %}
-          </div>
-
-          <div class="path-block">
-            <div class="path-header">
-              <span class="tag">BEST</span>
-              <span class="summary" style="margin: 0;">{{ result.best|length - 1 }} hop{{ '' if result.best|length - 1 == 1 else 's' }}</span>
-            </div>
-            <div class="chain">
-              {% for n in result.best %}
-                <div class="node {% if loop.first %}entry{% endif %}{% if loop.last %} target{% endif %}">
-                  <div class="name">{{ n.name }}</div>
-                  {% if n.id != n.name %}<div class="id">{{ n.id }}</div>{% endif %}
-                  {% if n.accounts %}
-                    <div class="links">
-                      {% for a in n.accounts %}
-                        <span class="link-pair">
-                          <a href="{{ a.url }}" target="_blank" rel="noopener noreferrer" title="{{ a.platform }}: {{ a.handle }}">{{ a.platform }}: {{ a.handle }}</a>
-                          {% if a.dm == 'yes' %}<span class="dm-badge yes" title="DM available">DM &#10003;</span>{% elif a.dm == 'no' %}<span class="dm-badge no" title="DM not available">DM &#10007;</span>{% endif %}
-                        </span>
-                      {% endfor %}
-                    </div>
+    <!-- ========== PROFILE BANNER ========== -->
+    <div class="card profile-card" id="profile-card">
+      <div class="profile-row">
+        <div class="profile-avatar" aria-hidden="true">{{ (profile.name or 'Y')[:1]|upper }}</div>
+        <div class="profile-main">
+          <div class="profile-kicker">Your profile</div>
+          <div class="profile-name">{{ profile.name }}</div>
+          {% if profile.accounts %}
+            <div class="profile-handles">
+              {% for a in profile.accounts %}
+                <a href="{{ a.url }}" target="_blank" rel="noopener noreferrer" class="social-badge small {{ a.platform }}">
+                  {% include '_platform_icon.html' ignore missing %}
+                  {% if a.platform == 'twitter' %}<svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                  {% elif a.platform == 'farcaster' %}<svg viewBox="0 0 225 225"><path d="M58.232 0h108.536v225h-15.909v-102.969h-.156c-1.757-19.47-18.115-34.719-38.04-34.719s-36.283 15.249-38.04 34.719h-.156v102.969h-15.909z"/><path d="M20.233 31.964l6.466 21.832h5.472v149.373c-2.748 0-4.976 2.229-4.976 4.976v5.969h-.995c-2.748 0-4.976 2.228-4.976 4.976v5.91h55.73v-5.91c0-2.748-2.228-4.976-4.976-4.976h-.995v-5.969c0-2.747-2.227-4.976-4.975-4.976h-5.472V31.964zm140.594 0l-6.466 21.832h-5.472v149.373c2.748 0 4.976 2.229 4.976 4.976v5.969h.995c2.748 0 4.976 2.228 4.976 4.976v5.91h-55.73v-5.91c0-2.748 2.228-4.976 4.976-4.976h.995v-5.969c0-2.747 2.227-4.976 4.975-4.976h5.472V31.964z"/></svg>
+                  {% elif a.platform == 'linkedin' %}<svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                  {% elif a.platform == 'wallet' %}<svg viewBox="0 0 24 24"><path d="M21 7.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2v-1.5M21 7.5H14a2.5 2.5 0 000 5H21v-5zm-3 2.5a.5.5 0 100 1 .5.5 0 000-1z"/></svg>
                   {% endif %}
-                </div>
-                {% if not loop.last %}<div class="arrow">→</div>{% endif %}
+                  {{ a.handle }}
+                </a>
               {% endfor %}
             </div>
-          </div>
+          {% else %}
+            <div class="profile-empty">No handles set yet — edit your profile to enable connections.</div>
+          {% endif %}
+        </div>
+        <div class="profile-actions">
+          <button type="button" class="btn-ghost" id="toggle-profile-form">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Edit profile
+          </button>
+        </div>
+      </div>
 
-          {% for alt in result.alternatives %}
-            <div class="path-block">
-              <div class="path-header">
-                <span class="tag alt">ALT {{ loop.index }}</span>
-              </div>
-              <div class="chain">
-                {% for n in alt %}
-                  <div class="node {% if loop.first %}entry{% endif %}{% if loop.last %} target{% endif %}">
-                    <div class="name">{{ n.name }}</div>
-                    {% if n.id != n.name %}<div class="id">{{ n.id }}</div>{% endif %}
-                    {% if n.accounts %}
-                      <div class="links">
-                        {% for a in n.accounts %}
-                          <span class="link-pair">
-                            <a href="{{ a.url }}" target="_blank" rel="noopener noreferrer" title="{{ a.platform }}: {{ a.handle }}">{{ a.platform }}: {{ a.handle }}</a>
-                            {% if a.dm == 'yes' %}<span class="dm-badge yes" title="DM available">DM &#10003;</span>{% elif a.dm == 'no' %}<span class="dm-badge no" title="DM not available">DM &#10007;</span>{% endif %}
-                          </span>
-                        {% endfor %}
-                      </div>
+      <form method="post" action="/profile" class="profile-form" id="profile-form">
+        <div class="profile-grid">
+          <div class="field"><label for="pf-name">Full name</label><input type="text" id="pf-name" name="name" value="{{ profile.name }}" placeholder="Your full name"></div>
+          <div class="field"><label for="pf-twitter">Twitter handle</label><input type="text" id="pf-twitter" name="twitter" value="{{ profile.twitter }}" placeholder="@username"></div>
+          <div class="field"><label for="pf-farcaster">Farcaster handle</label><input type="text" id="pf-farcaster" name="farcaster" value="{{ profile.farcaster }}" placeholder="username"></div>
+          <div class="field"><label for="pf-linkedin">LinkedIn slug</label><input type="text" id="pf-linkedin" name="linkedin" value="{{ profile.linkedin }}" placeholder="your-slug"></div>
+          <div class="field"><label for="pf-debank">DeBank wallet</label><input type="text" id="pf-debank" name="debank" value="{{ profile.debank }}" placeholder="0x..."></div>
+        </div>
+        <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
+          <button type="button" class="btn-ghost" id="cancel-profile-form">Cancel</button>
+          <button type="submit" class="btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save &amp; regenerate network
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Real-time network statistics dashboard -->
+    <div class="stats-dashboard" id="stats-dashboard">
+      <div class="stat-card accent">
+        <div class="stat-head"><span class="stat-icon">👥</span><span class="stat-label">People</span></div>
+        <div class="stat-value">{{ stats.people_count }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-head"><span class="stat-icon">🔗</span><span class="stat-label">Connections</span></div>
+        <div class="stat-value">{{ stats.edges_count }}</div>
+      </div>
+      <div class="stat-card strong">
+        <div class="stat-head"><span class="stat-icon">🔥</span><span class="stat-label">Strong ≥ 10</span></div>
+        <div class="stat-value">{{ stats.strong_count }}</div>
+      </div>
+      <div class="stat-card moderate">
+        <div class="stat-head"><span class="stat-icon">💪</span><span class="stat-label">Moderate 5-9</span></div>
+        <div class="stat-value">{{ stats.moderate_count }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-head"><span class="stat-icon">🌐</span><span class="stat-label">Platforms</span></div>
+        <div class="stat-value">{{ stats.platforms_count }}</div>
+      </div>
+      <div class="stat-card accent">
+        <div class="stat-head"><span class="stat-icon">📊</span><span class="stat-label">Avg Strength</span></div>
+        <div class="stat-value">{{ '%.1f'|format(stats.avg_strength) }}</div>
+      </div>
+    </div>
+
+    <!-- Network graph visualization (toggleable) -->
+    <div class="card graph-card">
+      <div class="graph-head">
+        <h2>Network graph</h2>
+        <button type="button" class="graph-toggle" id="graph-toggle" aria-expanded="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          <span class="label">Hide graph</span>
+        </button>
+      </div>
+      <div class="graph-container" id="graph-container" aria-label="Interactive network graph"></div>
+      <div class="graph-legend">
+        <span class="swatch"><span class="dot very-strong"></span> Very Strong 12-15</span>
+        <span class="swatch"><span class="dot strong"></span> Strong 8-11</span>
+        <span class="swatch"><span class="dot moderate"></span> Moderate 4-7</span>
+        <span class="swatch"><span class="dot weak"></span> Weak 1-3</span>
+      </div>
+    </div>
+
+    <div class="page-heading">
+      <h1>Find a warm introduction</h1>
+      <p>Type a name, handle, or wallet from anywhere in your 1st–3rd-degree network. We'll chart 3 ranked routes and walk you through the intro step by step.</p>
+    </div>
+
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+    <!-- ========== TARGET SEARCH FORM ========== -->
+    <form method="post" action="/search" class="card" id="search-form">
+      <h2>Find target</h2>
+      <label for="target">Search by name, handle, or wallet</label>
+      <div class="search-row">
+        <div class="search-wrap">
+          <input type="search" id="target" name="target" value="{{ target_query }}" autocomplete="off" placeholder="e.g. Sofia, @pascalokafor, 0xabc…" required>
+          <div class="suggestions" id="suggestions" role="listbox"></div>
+        </div>
+        <button type="submit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>
+          </svg>
+          Find warm path
+        </button>
+      </div>
+      <div class="hint" style="margin-top: 0.5rem;">Matches against name, Twitter / Farcaster / LinkedIn / DeBank across all degrees of your network.</div>
+    </form>
+
+    <!-- ========== NOT FOUND ========== -->
+    {% if not_found_query %}
+      <div class="card notfound-card">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6"/></svg>
+        <h3>Target not found in your network</h3>
+        <p>We couldn't match <span class="query">{{ not_found_query }}</span> to any 1st-, 2nd-, or 3rd-degree connection. Try expanding your connections (add more handles to your profile and regenerate), or double-check the spelling.</p>
+      </div>
+    {% endif %}
+
+    <!-- ========== RESULTS ========== -->
+    {% if result %}
+      <div class="result-wrap">
+        <div class="card">
+          <h2>Results</h2>
+
+          {% if not result.reachable %}
+            <div class="unreachable">{{ result.explanation }}</div>
+          {% else %}
+            <div class="summary">
+              Reaching <strong>{{ result.target.name }}</strong>
+              {% if result.target.degree is not none %}<span class="degree-chip d{{ result.target.degree if result.target.degree < 4 else 'x' }}" style="margin-left: 0.4rem;">{% if result.target.degree == 0 %}You{% elif result.target.degree == 1 %}1st degree{% elif result.target.degree == 2 %}2nd degree{% elif result.target.degree == 3 %}3rd degree{% else %}{{ result.target.degree }}+ degree{% endif %}</span>{% endif %}
+              — showing top <strong>{{ result.paths|length }}</strong> warm path{{ '' if result.paths|length == 1 else 's' }}.
+            </div>
+
+            {% if result.quick_stats %}
+              <div class="quick-stats" aria-label="Quick summary of best path">
+                <div class="quick-stat">
+                  <span class="qlabel">Best path</span>
+                  <span class="qvalue"><span class="num">{{ result.quick_stats.best_hops }}</span> hop{{ '' if result.quick_stats.best_hops == 1 else 's' }}</span>
+                </div>
+                <div class="quick-stat strongest">
+                  <span class="qlabel">🔥 Strongest hop</span>
+                  <span class="qvalue" title="{{ result.quick_stats.strongest.from_handle }} ↔ {{ result.quick_stats.strongest.to_handle }}">{{ result.quick_stats.strongest.to_handle }} <span class="num">({{ result.quick_stats.strongest.strength }})</span></span>
+                </div>
+                <div class="quick-stat weakest">
+                  <span class="qlabel">🪢 Weakest link</span>
+                  <span class="qvalue" title="{{ result.quick_stats.weakest.from_handle }} ↔ {{ result.quick_stats.weakest.to_handle }}">{{ result.quick_stats.weakest.to_handle }} <span class="num">({{ result.quick_stats.weakest.strength }})</span></span>
+                </div>
+                <div class="quick-stat rec">
+                  <span class="qlabel">📬 Recommended outreach</span>
+                  <span class="qvalue">
+                    {% if result.quick_stats.recommended_platform %}
+                      <span class="social-badge small {{ result.quick_stats.recommended_platform }}">
+                        {% if result.quick_stats.recommended_platform == 'twitter' %}<svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        {% elif result.quick_stats.recommended_platform == 'farcaster' %}<svg viewBox="0 0 225 225"><path d="M58.232 0h108.536v225h-15.909v-102.969h-.156c-1.757-19.47-18.115-34.719-38.04-34.719s-36.283 15.249-38.04 34.719h-.156v102.969h-15.909z"/><path d="M20.233 31.964l6.466 21.832h5.472v149.373c-2.748 0-4.976 2.229-4.976 4.976v5.969h-.995c-2.748 0-4.976 2.228-4.976 4.976v5.91h55.73v-5.91c0-2.748-2.228-4.976-4.976-4.976h-.995v-5.969c0-2.747-2.227-4.976-4.975-4.976h-5.472V31.964zm140.594 0l-6.466 21.832h-5.472v149.373c2.748 0 4.976 2.229 4.976 4.976v5.969h.995c2.748 0 4.976 2.228 4.976 4.976v5.91h-55.73v-5.91c0-2.748 2.228-4.976 4.976-4.976h.995v-5.969c0-2.747 2.227-4.976 4.975-4.976h5.472V31.964z"/></svg>
+                        {% elif result.quick_stats.recommended_platform == 'linkedin' %}<svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                        {% elif result.quick_stats.recommended_platform == 'wallet' %}<svg viewBox="0 0 24 24"><path d="M21 7.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2v-1.5M21 7.5H14a2.5 2.5 0 000 5H21v-5zm-3 2.5a.5.5 0 100 1 .5.5 0 000-1z"/></svg>
+                        {% endif %}
+                        {{ result.quick_stats.recommended_label }}
+                      </span>
+                    {% else %}
+                      <span style="color: var(--muted);">—</span>
                     {% endif %}
-                  </div>
-                  {% if not loop.last %}<div class="arrow">→</div>{% endif %}
-                {% endfor %}
+                  </span>
+                </div>
+              </div>
+            {% endif %}
+
+            <!-- Outreach status tracker (per target) -->
+            <div class="status-tracker" id="status-tracker" data-target-id="{{ result.target.id }}">
+              <span class="st-label">Outreach status</span>
+              <span class="status-pill {% if result.target_status.state == 'visited' %}visited{% elif result.target_status.state == 'sent' %}sent{% endif %}" id="status-pill">{{ result.target_status.label }}</span>
+              <div class="status-actions">
+                <button type="button" class="track-btn {% if result.target_status.visited_profile %}active{% endif %}" data-track="visited_profile" id="track-visited">
+                  <span class="checkbox">
+                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                  Visited profile
+                </button>
+                <button type="button" class="track-btn {% if result.target_status.message_sent %}active sent{% endif %}" data-track="message_sent" id="track-sent">
+                  <span class="checkbox">
+                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                  Message sent
+                </button>
               </div>
             </div>
-          {% endfor %}
 
-          <div class="explanation">{{ result.explanation }}</div>
-        {% endif %}
+            {% for path in result.paths %}
+              <div class="path-card" data-path-id="{{ path.rank }}">
+                <div class="path-header-row">
+                  <span class="rank-badge r{{ path.rank }}">
+                    <span class="emoji">{{ path.medal }}</span>{{ path.label }}
+                  </span>
+                  <span class="path-stats">
+                    <strong>{{ path.hops }}</strong> hop{{ '' if path.hops == 1 else 's' }}
+                    · strength <strong>{{ '%.1f'|format(path.total_strength) }}</strong>
+                  </span>
+                  <span class="score-chip" title="Composite: 40% hops · 35% mutuals · 25% strength">
+                    Score {{ '%.2f'|format(path.score) }}
+                  </span>
+                  <button type="button" class="select-path-btn" data-select-path="{{ path.rank }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span class="select-label">Select this path</span>
+                  </button>
+                </div>
+
+                <!-- Readable path summary line (always visible) -->
+                <div class="chain-label">
+                  {% for n in path.nodes %}
+                    <span class="node-ref">{% if loop.first %}You{% else %}{{ n.handle }}{% endif %}</span>
+                    {%- if not loop.last %}<span class="sep">→</span>{% endif %}
+                  {% endfor %}
+                </div>
+
+                {# Everything from here is hidden until this path card is Selected. #}
+                <div class="path-expanded" id="path-expanded-{{ path.rank }}">
+
+                <div class="chain">
+                  {% for n in path.nodes %}
+                    <div class="node {% if loop.first %}entry{% endif %}{% if loop.last %} target{% endif %}" data-node-toggle>
+                      <span class="expand-hint" aria-hidden="true">▾</span>
+                      <div class="node-head">
+                        <div class="avatar" aria-hidden="true">{{ (n.name or n.id)[:1]|upper }}</div>
+                        <div class="name-col">
+                          <span class="name">{{ n.name }}</span>
+                          <span class="handle">{{ n.handle }}</span>
+                        </div>
+                      </div>
+                      <div class="degree-row">
+                        {% if loop.first %}
+                          <span class="degree-chip d0">You (Entry)</span>
+                        {% elif loop.last %}
+                          <span class="degree-chip d{{ n.degree if n.degree is not none and n.degree < 4 else 'x' }}">Target</span>
+                          {% if n.degree is not none %}<span class="degree-chip d{{ n.degree if n.degree < 4 else 'x' }}">{% if n.degree == 1 %}1st degree{% elif n.degree == 2 %}2nd degree{% elif n.degree == 3 %}3rd degree{% else %}{{ n.degree }}+ degree{% endif %}</span>{% endif %}
+                        {% else %}
+                          <span class="degree-chip d{{ n.degree if n.degree is not none and n.degree < 4 else 'x' }}">{% if n.degree == 1 %}1st degree{% elif n.degree == 2 %}2nd degree{% elif n.degree == 3 %}3rd degree{% else %}{{ n.degree or '?' }}+ degree{% endif %}</span>
+                        {% endif %}
+                      </div>
+                      {% if loop.last %}
+                        <span class="node-status-badge {% if result.target_status.state == 'visited' %}visited{% elif result.target_status.state == 'sent' %}sent{% endif %}" data-target-badge="{{ path.target.id }}">
+                          {{ result.target_status.label }}
+                        </span>
+                      {% endif %}
+                      {% if n.accounts %}
+                        <div class="links">
+                          {% for a in n.accounts %}
+                            <span class="link-pair">
+                              <a href="{{ a.url }}" target="_blank" rel="noopener noreferrer" class="social-badge {{ a.platform }}" title="{{ a.platform }}: {{ a.handle }}">
+                                {% if a.platform == 'twitter' %}<svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                {% elif a.platform == 'farcaster' %}<svg viewBox="0 0 225 225"><path d="M58.232 0h108.536v225h-15.909v-102.969h-.156c-1.757-19.47-18.115-34.719-38.04-34.719s-36.283 15.249-38.04 34.719h-.156v102.969h-15.909z"/><path d="M20.233 31.964l6.466 21.832h5.472v149.373c-2.748 0-4.976 2.229-4.976 4.976v5.969h-.995c-2.748 0-4.976 2.228-4.976 4.976v5.91h55.73v-5.91c0-2.748-2.228-4.976-4.976-4.976h-.995v-5.969c0-2.747-2.227-4.976-4.975-4.976h-5.472V31.964zm140.594 0l-6.466 21.832h-5.472v149.373c2.748 0 4.976 2.229 4.976 4.976v5.969h.995c2.748 0 4.976 2.228 4.976 4.976v5.91h-55.73v-5.91c0-2.748 2.228-4.976 4.976-4.976h.995v-5.969c0-2.747 2.227-4.976 4.975-4.976h5.472V31.964z"/></svg>
+                                {% elif a.platform == 'linkedin' %}<svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                                {% elif a.platform == 'wallet' %}<svg viewBox="0 0 24 24"><path d="M21 7.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2v-1.5M21 7.5H14a2.5 2.5 0 000 5H21v-5zm-3 2.5a.5.5 0 100 1 .5.5 0 000-1z"/></svg>
+                                {% endif %}
+                                {{ a.handle }}
+                              </a>
+                              {% if a.dm == 'yes' %}<span class="dm-badge yes">DM</span>{% elif a.dm == 'no' %}<span class="dm-badge no">No DM</span>{% endif %}
+                            </span>
+                          {% endfor %}
+                        </div>
+                      {% endif %}
+                      {# Interaction icon strip — only types with count > 0 #}
+                      {% if n.interactions %}
+                        <div class="interaction-strip">
+                          {% for i in n.interactions %}
+                            <span class="interaction-chip" title="{{ i.label }}">
+                              <span>{{ i.icon }}</span>
+                              <span class="count">{{ i.count }}</span>
+                            </span>
+                          {% endfor %}
+                          {% if n.interaction_score > 0 %}
+                            <button type="button" class="interaction-score-chip"
+                                    data-open-interactions="{{ path.rank }}-{{ loop.index0 }}"
+                                    title="View full interaction breakdown">
+                              Score {{ n.interaction_score }}/15
+                            </button>
+                          {% endif %}
+                        </div>
+                      {% endif %}
+                    </div>
+                    {% if not loop.last %}
+                      {% set hop = path.hop_strengths[loop.index0] %}
+                      <div class="arrow {{ hop.bucket.band }}" aria-hidden="true"
+                           title="Strength {{ hop.strength }}: {{ hop.bucket.label }}">
+                        <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+                        <span class="strength-pill {{ hop.bucket.band }}">
+                          {{ hop.bucket.emoji }} {{ hop.bucket.label }}
+                        </span>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+
+                {# Hidden interaction-details payload per node, consumed by the modal. #}
+                {% for n in path.nodes %}
+                  <script type="application/json"
+                          id="idet-{{ path.rank }}-{{ loop.index0 }}">
+                  {{ n.modal_payload | tojson | safe }}
+                  </script>
+                {% endfor %}
+
+                <!-- Mutual-platform status panel per hop -->
+                <div class="mutual-panels">
+                  {% for m in path.mutual_panels %}
+                    <div class="mutual-panel">
+                      <div class="mutual-pair">
+                        <strong>{{ loop.first and 'You' or m.from.handle }}</strong>
+                        <span class="dot-sep">↔</span>
+                        <strong>{{ m.to.handle }}</strong>
+                      </div>
+                      <div class="mutual-platforms">
+                        {% for mp in m.platforms %}
+                          <span class="mp-chip {% if mp.mutual %}mutual{% else %}missing{% endif %}">{{ mp.platform_label }}</span>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+
+                <!-- Outreach (hidden until Select is pressed) -->
+                <div class="outreach-card" id="outreach-{{ path.rank }}">
+                  <h2 style="margin-top: 0.5rem;">Reach out to {{ path.target.handle }}</h2>
+
+                  <!-- Master CTA: expand all platforms -->
+                  <button type="button" class="send-intro-btn" data-expand-platforms="{{ path.rank }}">
+                    <span>📤</span> Send Warm Intro Message
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+
+                  <!-- Collapsible platform list (closed by default) -->
+                  <div class="platforms-collapse" id="platforms-{{ path.rank }}">
+                    <div class="option-sub" style="margin-top: 0.2rem;">
+                      One message per platform the target is on. Each mentions your mutual connection and where you found them.
+                    </div>
+                    {% if path.direct_outreach %}
+                      {% for pb in path.direct_outreach %}
+                        <div class="platform-tab" data-platform-tab="b-{{ path.rank }}-{{ pb.platform }}">
+                          <div class="platform-tab-head">
+                            <span class="social-badge small {{ pb.platform }}">
+                              {% if pb.platform == 'twitter' %}<svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                              {% elif pb.platform == 'farcaster' %}<svg viewBox="0 0 225 225"><path d="M58.232 0h108.536v225h-15.909v-102.969h-.156c-1.757-19.47-18.115-34.719-38.04-34.719s-36.283 15.249-38.04 34.719h-.156v102.969h-15.909z"/><path d="M20.233 31.964l6.466 21.832h5.472v149.373c-2.748 0-4.976 2.229-4.976 4.976v5.969h-.995c-2.748 0-4.976 2.228-4.976 4.976v5.91h55.73v-5.91c0-2.748-2.228-4.976-4.976-4.976h-.995v-5.969c0-2.747-2.227-4.976-4.975-4.976h-5.472V31.964zm140.594 0l-6.466 21.832h-5.472v149.373c2.748 0 4.976 2.229 4.976 4.976v5.969h.995c2.748 0 4.976 2.228 4.976 4.976v5.91h-55.73v-5.91c0-2.748 2.228-4.976 4.976-4.976h.995v-5.969c0-2.747 2.227-4.976 4.975-4.976h5.472V31.964z"/></svg>
+                              {% elif pb.platform == 'linkedin' %}<svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                              {% elif pb.platform == 'wallet' %}<svg viewBox="0 0 24 24"><path d="M21 7.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2v-1.5M21 7.5H14a2.5 2.5 0 000 5H21v-5zm-3 2.5a.5.5 0 100 1 .5.5 0 000-1z"/></svg>
+                              {% endif %}
+                              {{ pb.platform_label }}
+                            </span>
+                            <span class="handle">{{ pb.handle }}</span>
+                            <button type="button" class="platform-tab-expand" data-expand-target="b-{{ path.rank }}-{{ pb.platform }}">
+                              <span class="label">Open</span>
+                              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                          </div>
+                          <div class="platform-tab-body">
+                            <textarea class="msg-area" data-msg-id="b-{{ path.rank }}-{{ pb.platform }}">{{ pb.message }}</textarea>
+                            <div class="msg-actions">
+                              <button type="button" class="copy-btn" data-copy-target="b-{{ path.rank }}-{{ pb.platform }}">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                Copy
+                              </button>
+                              <a class="open-btn" href="{{ pb.compose_url }}" target="_blank" rel="noopener noreferrer" data-mark-visited="{{ path.target.id }}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                Open {{ pb.platform_label }}
+                              </a>
+                              <button type="button" class="mark-sent-btn" data-mark-sent="{{ path.target.id }}" data-platform="{{ pb.platform }}">
+                                <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                                Mark as Sent
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      {% endfor %}
+                    {% else %}
+                      <div class="option-sub">Target has no reachable social accounts yet.</div>
+                    {% endif %}
+                  </div>
+
+                  <!-- In-system composer (always visible inside outreach) -->
+                  <div class="in-system-composer">
+                    <h3>💬 Send via Warm Intro Finder</h3>
+                    <p class="h3-sub">Queue a warm intro directly in the platform. Login to activate real sending.</p>
+                    <form class="composer-form" data-composer-for="{{ path.target.id }}">
+                      <div class="composer-grid">
+                        <label for="cmp-to-{{ path.rank }}">To:</label>
+                        <input id="cmp-to-{{ path.rank }}" name="to_handle" type="text" value="{{ result.to_handle }}" readonly>
+                        <label for="cmp-from-{{ path.rank }}">From:</label>
+                        <input id="cmp-from-{{ path.rank }}" name="from_handle" type="text" value="{{ result.from_handle }}" readonly>
+                        <label for="cmp-msg-{{ path.rank }}" style="align-self: start; padding-top: 0.5rem;">Message:</label>
+                        <textarea id="cmp-msg-{{ path.rank }}" name="message" class="composer-message">{{ result.composer_message }}</textarea>
+                      </div>
+                      <div class="composer-send">
+                        <button type="submit">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                          Send
+                        </button>
+                      </div>
+                    </form>
+
+                  </div>
+
+                  <!-- Pending messages list (per-target, mirrored across path cards) -->
+                  <div class="pending-card" data-pending-for="{{ path.target.id }}">
+                    <h4>📬 Pending Messages</h4>
+                    <div class="pending-list">
+                      {% if result.pending_messages %}
+                        {% for m in result.pending_messages %}
+                          <div class="pending-item">
+                            <div class="pending-head">
+                              <span class="pm-from">{{ m.from_handle or 'you' }}</span>
+                              <span class="pm-arrow">→</span>
+                              <span class="pm-to">{{ m.to_handle }}</span>
+                              <span class="pending-status">{{ m.status }}</span>
+                              <span class="pm-time">{{ m.created_at }}</span>
+                            </div>
+                            <div class="pending-body">{{ m.message }}</div>
+                          </div>
+                        {% endfor %}
+                      {% else %}
+                        <div class="pending-empty" data-empty>No queued messages yet. Use the composer above to queue one.</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                </div> {# /.path-expanded — collapsed until Select is pressed #}
+
+              </div>
+            {% endfor %}
+
+            <div class="explanation">{{ result.explanation }}</div>
+          {% endif %}
+        </div>
       </div>
     {% endif %}
   </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Interaction details modal (hidden by default; populated via JS) -->
+  <div class="modal-backdrop" id="interaction-modal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="interaction-modal-title">
+      <div class="modal-head">
+        <div class="avatar" id="imodal-avatar" aria-hidden="true">?</div>
+        <div class="title">
+          <div class="name" id="interaction-modal-title">—</div>
+          <div class="sub" id="imodal-handle">—</div>
+        </div>
+        <button type="button" class="modal-close" id="imodal-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-section">
+        <h4>Interaction score</h4>
+        <div class="modal-score-big"><span class="big-num" id="imodal-score">0</span><span>/ 15</span></div>
+      </div>
+      <div class="modal-section">
+        <h4>Last interaction</h4>
+        <div class="modal-last"><span class="date" id="imodal-last">—</span></div>
+      </div>
+      <div class="modal-section">
+        <h4>Platforms connected &amp; per-platform activity</h4>
+        <div id="imodal-platforms"></div>
+      </div>
+      <div class="modal-section">
+        <h4>Mutual with you</h4>
+        <div class="modal-platform-mutual" id="imodal-mutuals"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SEARCH_INDEX = {{ search_index_json|safe }};
+    const GRAPH_DATA   = {{ graph_data_json|safe }};
+    // Profile platforms — used to flag "mutual with you" per platform
+    // in the interaction-details modal.
+    const PROFILE_PLATFORMS = {{ (profile.accounts or []) | map(attribute='platform') | list | tojson | safe }};
+    // Icon + label table mirroring app.py INTERACTION_ICONS.
+    const INTERACTION_ICONS = [
+      {key: "twitter_likes",            platform: "twitter",   icon: "👍", label: "Likes"},
+      {key: "twitter_comments",         platform: "twitter",   icon: "💬", label: "Comments"},
+      {key: "twitter_reposts",          platform: "twitter",   icon: "🔁", label: "Reposts"},
+      {key: "farcaster_recasts",        platform: "farcaster", icon: "🔄", label: "Recasts"},
+      {key: "farcaster_replies",        platform: "farcaster", icon: "💬", label: "Replies"},
+      {key: "linkedin_recommendations", platform: "linkedin",  icon: "⭐", label: "Recommendations"},
+      {key: "linkedin_endorsements",    platform: "linkedin",  icon: "🏆", label: "Endorsements"},
+      {key: "debank_transactions",      platform: "wallet",    icon: "💸", label: "On-chain txs"},
+    ];
+    const PLATFORM_LABEL = {
+      twitter: "Twitter / X", farcaster: "Farcaster",
+      linkedin: "LinkedIn", wallet: "DeBank",
+    };
+
+    // --- Toast helper (global) ---------------------------------------
+    function showToast(message, kind) {
+      const el = document.getElementById('toast');
+      if (!el) return;
+      el.textContent = message;
+      el.style.background = (kind === 'error') ? 'var(--error)' : 'var(--success)';
+      el.classList.add('show');
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => el.classList.remove('show'), 2800);
+    }
+
+    // --- Theme toggle -------------------------------------------------
+    (function () {
+      const btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+        const next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+      });
+    })();
+
+    // --- Profile form toggle -----------------------------------------
+    (function () {
+      const form = document.getElementById('profile-form');
+      const openBtn = document.getElementById('toggle-profile-form');
+      const cancelBtn = document.getElementById('cancel-profile-form');
+      if (openBtn && form) openBtn.addEventListener('click', () => form.classList.toggle('open'));
+      if (cancelBtn && form) cancelBtn.addEventListener('click', () => form.classList.remove('open'));
+    })();
+
+    // --- Autocomplete suggestions ------------------------------------
+    (function () {
+      const input = document.getElementById('target');
+      const box = document.getElementById('suggestions');
+      if (!input || !box) return;
+
+      function degreeChipClass(d) {
+        if (d === 0) return 'd0';
+        if (d === 1) return 'd1';
+        if (d === 2) return 'd2';
+        if (d === 3) return 'd3';
+        return 'dx';
+      }
+
+      function render(results) {
+        box.innerHTML = '';
+        if (!results.length) {
+          box.classList.remove('open');
+          return;
+        }
+        for (const r of results.slice(0, 12)) {
+          const row = document.createElement('div');
+          row.className = 'sugg-item';
+          row.setAttribute('role', 'option');
+          row.dataset.name = r.name;
+          const left = document.createElement('div');
+          left.style.minWidth = 0;
+          const nameEl = document.createElement('div');
+          nameEl.className = 'sugg-name';
+          nameEl.textContent = r.name;
+          const handlesEl = document.createElement('div');
+          handlesEl.className = 'sugg-handles';
+          handlesEl.textContent = (r.handles && r.handles.length ? r.handles.slice(0, 3).join(' · ') : r.id);
+          left.appendChild(nameEl);
+          left.appendChild(handlesEl);
+          const chip = document.createElement('span');
+          chip.className = 'degree-chip ' + degreeChipClass(r.degree);
+          chip.textContent = r.degree_label;
+          row.appendChild(left);
+          row.appendChild(chip);
+          row.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            input.value = r.name;
+            box.classList.remove('open');
+          });
+          box.appendChild(row);
+        }
+        box.classList.add('open');
+      }
+
+      function query(q) {
+        const qq = q.trim().toLowerCase().replace(/^@/, '');
+        if (!qq) return [];
+        return SEARCH_INDEX.filter((r) =>
+          r.tokens.some((t) => t.includes(qq))
+        );
+      }
+
+      input.addEventListener('input', () => render(query(input.value)));
+      input.addEventListener('focus', () => { if (input.value) render(query(input.value)); });
+      input.addEventListener('blur', () => setTimeout(() => box.classList.remove('open'), 100));
+    })();
+
+    // --- "Select this path" reveals that path's outreach section -----
+    (function () {
+      document.querySelectorAll('[data-select-path]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const rank = btn.dataset.selectPath;
+          document.querySelectorAll('.path-card').forEach((c) => c.classList.remove('selected'));
+          document.querySelectorAll('.outreach-card').forEach((c) => c.classList.remove('active'));
+          const card = btn.closest('.path-card');
+          card.classList.add('selected');
+          const out = document.getElementById('outreach-' + rank);
+          if (out) { out.classList.add('active'); out.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+          document.querySelectorAll('.select-label').forEach((el) => (el.textContent = 'Select this path'));
+          const lbl = btn.querySelector('.select-label');
+          if (lbl) lbl.textContent = 'Selected';
+        });
+      });
+    })();
+
+    // --- Master CTA reveals / hides all platforms --------------------
+    (function () {
+      document.querySelectorAll('[data-expand-platforms]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const rank = btn.dataset.expandPlatforms;
+          const panel = document.getElementById('platforms-' + rank);
+          if (!panel) return;
+          const nowOpen = !panel.classList.contains('open');
+          panel.classList.toggle('open', nowOpen);
+          btn.classList.toggle('open', nowOpen);
+        });
+      });
+    })();
+
+    // --- Individual platform tab expand/collapse ---------------------
+    (function () {
+      document.querySelectorAll('[data-expand-target]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const tab = btn.closest('.platform-tab');
+          const nowOpen = !tab.classList.contains('open');
+          tab.classList.toggle('open', nowOpen);
+          const label = btn.querySelector('.label');
+          if (label) label.textContent = nowOpen ? 'Close' : 'Open';
+        });
+      });
+    })();
+
+    // --- Mark as Sent per platform -----------------------------------
+    (function () {
+      document.querySelectorAll('[data-mark-sent]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const targetId = btn.dataset.markSent;
+          const body = new URLSearchParams();
+          body.set('target_id', targetId);
+          body.set('message_sent', 'true');
+          body.set('visited_profile', 'true');
+          try {
+            const r = await fetch('/outreach/status', { method: 'POST', body });
+            const data = await r.json();
+            if (!data || !data.ok) throw new Error('bad response');
+            // Green confirm on the button
+            btn.classList.add('done');
+            btn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Sent ✔';
+            showToast('Message marked as sent. Status saved.');
+            // Update the tracker pill + node badge
+            const pill = document.getElementById('status-pill');
+            if (pill) {
+              pill.textContent = data.status.label;
+              pill.classList.remove('visited'); pill.classList.add('sent');
+            }
+            document.querySelectorAll('[data-target-badge="' + targetId + '"]').forEach((b) => {
+              b.textContent = data.status.label;
+              b.classList.remove('visited'); b.classList.add('sent');
+            });
+            document.getElementById('track-sent')?.classList.add('active', 'sent');
+            document.getElementById('track-visited')?.classList.add('active');
+          } catch (e) {
+            showToast('Couldn\'t save status — try again.', 'error');
+          }
+        });
+      });
+    })();
+
+    // --- Interaction details modal -----------------------------------
+    (function () {
+      const modal = document.getElementById('interaction-modal');
+      if (!modal) return;
+      const elAvatar = document.getElementById('imodal-avatar');
+      const elName   = document.getElementById('interaction-modal-title');
+      const elHandle = document.getElementById('imodal-handle');
+      const elScore  = document.getElementById('imodal-score');
+      const elLast   = document.getElementById('imodal-last');
+      const elPlat   = document.getElementById('imodal-platforms');
+      const elMut    = document.getElementById('imodal-mutuals');
+      const btnClose = document.getElementById('imodal-close');
+
+      function openFor(payload) {
+        elAvatar.textContent = (payload.name || payload.id || '?').slice(0, 1).toUpperCase();
+        elName.textContent   = payload.name || payload.id;
+        elHandle.textContent = payload.handle || '';
+        elScore.textContent  = String(payload.interaction_score || 0);
+        elLast.textContent   = payload.last_interaction || 'No interactions recorded';
+
+        // Per-platform breakdown — one block per account the person owns.
+        elPlat.innerHTML = '';
+        for (const acc of payload.accounts || []) {
+          const head = document.createElement('div');
+          head.className = 'platform-head';
+          head.innerHTML = '<strong style="color: var(--ink); font-size: 0.9rem;">'
+            + (PLATFORM_LABEL[acc.platform] || acc.platform) + '</strong>'
+            + '<span style="color: var(--muted); font-size: 0.8rem; font-family: ui-monospace, Menlo, monospace;">'
+            + (acc.handle || '') + '</span>';
+          elPlat.appendChild(head);
+
+          const kv = document.createElement('div');
+          kv.className = 'kv';
+          let hasRows = false;
+          for (const spec of INTERACTION_ICONS) {
+            if (spec.platform !== acc.platform) continue;
+            const count = (acc.interactions || {})[spec.key] || 0;
+            if (!count) continue;
+            hasRows = true;
+            kv.insertAdjacentHTML('beforeend',
+              '<span class="ico">' + spec.icon + '</span>'
+              + '<span class="label">' + spec.label + '</span>'
+              + '<span class="count">' + count + '</span>');
+          }
+          if (!hasRows) {
+            const empty = document.createElement('div');
+            empty.style.cssText = 'font-size: 0.85rem; color: var(--muted); font-style: italic;';
+            empty.textContent = 'No recorded interactions on this platform.';
+            elPlat.appendChild(empty);
+          } else {
+            elPlat.appendChild(kv);
+          }
+        }
+
+        // "Mutual with you" — for each of the 4 supported platforms,
+        // ✔ if both you and this person have a handle on it.
+        elMut.innerHTML = '';
+        const theirPlatforms = new Set((payload.accounts || []).map(a => a.platform));
+        const allPlats = ["twitter", "farcaster", "linkedin", "wallet"];
+        for (const p of allPlats) {
+          const mutual = PROFILE_PLATFORMS.includes(p) && theirPlatforms.has(p);
+          const chip = document.createElement('span');
+          chip.className = 'mp-chip ' + (mutual ? 'mutual' : 'missing');
+          chip.textContent = PLATFORM_LABEL[p] || p;
+          elMut.appendChild(chip);
+        }
+
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+      }
+
+      function close() {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+
+      // Wire up every "Score N/15" chip to open the modal with that
+      // node's full breakdown.
+      document.querySelectorAll('[data-open-interactions]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.openInteractions;
+          const payloadEl = document.getElementById('idet-' + id);
+          if (!payloadEl) return;
+          try {
+            openFor(JSON.parse(payloadEl.textContent));
+          } catch (e) {
+            console.warn('failed to parse interaction payload', e);
+          }
+        });
+      });
+
+      btnClose.addEventListener('click', close);
+      modal.addEventListener('click', (ev) => {
+        if (ev.target === modal) close();
+      });
+      document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape' && modal.classList.contains('open')) close();
+      });
+    })();
+
+    // --- In-system composer send -------------------------------------
+    (function () {
+      function renderPendingItem(m) {
+        const div = document.createElement('div');
+        div.className = 'pending-item';
+        const head = document.createElement('div');
+        head.className = 'pending-head';
+        head.innerHTML =
+          '<span class="pm-from"></span>' +
+          '<span class="pm-arrow">→</span>' +
+          '<span class="pm-to"></span>' +
+          '<span class="pending-status"></span>' +
+          '<span class="pm-time"></span>';
+        head.querySelector('.pm-from').textContent = m.from_handle || 'you';
+        head.querySelector('.pm-to').textContent = m.to_handle || '';
+        head.querySelector('.pending-status').textContent = m.status || 'pending';
+        head.querySelector('.pm-time').textContent = m.created_at || '';
+        const body = document.createElement('div');
+        body.className = 'pending-body';
+        body.textContent = m.message || '';
+        div.appendChild(head);
+        div.appendChild(body);
+        return div;
+      }
+
+      document.querySelectorAll('.composer-form').forEach((form) => {
+        form.addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          const targetId = form.dataset.composerFor;
+          const body = new URLSearchParams(new FormData(form));
+          body.set('target_id', targetId);
+          body.set('platform', 'in-system');
+          try {
+            const r = await fetch('/messages/send', { method: 'POST', body });
+            const data = await r.json();
+            if (!data || !data.ok) throw new Error('bad response');
+            showToast('Message queued! Login to activate sending.');
+            // Append the new item to every pending list for this target
+            document
+              .querySelectorAll('.pending-card[data-pending-for="' + targetId + '"] .pending-list')
+              .forEach((list) => {
+                const empty = list.querySelector('[data-empty]');
+                if (empty) empty.remove();
+                list.insertBefore(renderPendingItem(data.message), list.firstChild);
+              });
+          } catch (e) {
+            showToast('Couldn\'t queue message.', 'error');
+          }
+        });
+      });
+    })();
+
+    // --- Copy button for every textarea ------------------------------
+    (function () {
+      document.querySelectorAll('[data-copy-target]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.copyTarget;
+          const ta = document.querySelector('[data-msg-id="' + id + '"]');
+          if (!ta) return;
+          try {
+            await navigator.clipboard.writeText(ta.value);
+          } catch (e) {
+            ta.select(); document.execCommand('copy');
+          }
+          const orig = btn.innerHTML;
+          btn.classList.add('copied');
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = orig; }, 1400);
+        });
+      });
+    })();
+
+    // --- Outreach status tracker -------------------------------------
+    (function () {
+      const tracker = document.getElementById('status-tracker');
+      if (!tracker) return;
+      const targetId = tracker.dataset.targetId;
+      const pill = document.getElementById('status-pill');
+      const btnVisited = document.getElementById('track-visited');
+      const btnSent = document.getElementById('track-sent');
+
+      function paint(status) {
+        // status = {visited_profile, message_sent, state, label}
+        pill.textContent = status.label;
+        pill.classList.remove('visited', 'sent');
+        if (status.state === 'visited') pill.classList.add('visited');
+        if (status.state === 'sent') pill.classList.add('sent');
+
+        btnVisited.classList.toggle('active', status.visited_profile);
+        btnSent.classList.toggle('active', status.message_sent);
+        btnSent.classList.toggle('sent', status.message_sent);
+
+        // Mirror to the node-level badges on every path's target card.
+        document
+          .querySelectorAll('[data-target-badge="' + targetId + '"]')
+          .forEach((b) => {
+            b.textContent = status.label;
+            b.classList.remove('visited', 'sent');
+            if (status.state === 'visited') b.classList.add('visited');
+            if (status.state === 'sent') b.classList.add('sent');
+          });
+      }
+
+      async function post(fields) {
+        const body = new URLSearchParams();
+        body.set('target_id', targetId);
+        for (const [k, v] of Object.entries(fields)) {
+          body.set(k, v ? 'true' : 'false');
+        }
+        try {
+          const r = await fetch('/outreach/status', { method: 'POST', body });
+          const data = await r.json();
+          if (data && data.status) paint(data.status);
+        } catch (e) {
+          console.warn('status save failed', e);
+        }
+      }
+
+      btnVisited.addEventListener('click', () => {
+        const nowActive = !btnVisited.classList.contains('active');
+        // Toggling off visited is OK only if message_sent is not true.
+        if (!nowActive && btnSent.classList.contains('active')) return;
+        post({ visited_profile: nowActive });
+      });
+      btnSent.addEventListener('click', () => {
+        const nowActive = !btnSent.classList.contains('active');
+        // Sending implies visited.
+        post({ message_sent: nowActive, visited_profile: nowActive || btnVisited.classList.contains('active') });
+      });
+
+      // Clicking any "Open [platform]" link marks the profile as visited.
+      document.querySelectorAll('[data-mark-visited]').forEach((a) => {
+        a.addEventListener('click', () => {
+          if (!btnVisited.classList.contains('active')) {
+            post({ visited_profile: true });
+          }
+        });
+      });
+    })();
+
+    // --- Path card Select now also toggles the collapsible body ------
+    // The existing [data-select-path] handler already toggles `.selected`
+    // on path cards. The CSS uses that to reveal `.path-expanded`. Clicking
+    // Select on a different path collapses the previous one (handled by
+    // the existing handler clearing `.selected` on all cards first).
+
+    // --- Compact node: click to expand / collapse --------------------
+    (function () {
+      document.querySelectorAll('[data-node-toggle]').forEach((card) => {
+        card.addEventListener('click', (ev) => {
+          // Don't toggle when the user is interacting with something
+          // meaningful inside the card (a link, button, textarea, etc.).
+          if (ev.target.closest('a, button, textarea, input, .social-badge, .interaction-score-chip')) {
+            return;
+          }
+          card.classList.toggle('expanded');
+        });
+      });
+    })();
+
+    // --- Graph toggle (show/hide the graph container) ----------------
+    (function () {
+      const btn = document.getElementById('graph-toggle');
+      const box = document.getElementById('graph-container');
+      if (!btn || !box) return;
+      btn.addEventListener('click', () => {
+        const hidden = box.classList.toggle('hidden');
+        btn.classList.toggle('collapsed', hidden);
+        btn.setAttribute('aria-expanded', String(!hidden));
+        btn.querySelector('.label').textContent = hidden ? 'Show graph' : 'Hide graph';
+      });
+    })();
+
+    // --- Network graph (vis-network) ---------------------------------
+    (function () {
+      if (typeof vis === 'undefined') {
+        console.warn('vis-network failed to load — graph hidden.');
+        const box = document.getElementById('graph-container');
+        if (box) {
+          box.style.display = 'grid';
+          box.style.placeItems = 'center';
+          box.textContent = 'Graph library failed to load.';
+          box.style.color = 'var(--muted)';
+        }
+        return;
+      }
+      const container = document.getElementById('graph-container');
+      if (!container || !GRAPH_DATA || !GRAPH_DATA.nodes) return;
+
+      const bandColor = {
+        'very-strong': '#10B981',
+        'strong':      '#3B82F6',
+        'moderate':    '#F59E0B',
+        'weak':        '#94A3B8',
+      };
+      const themeDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const nodeBg      = themeDark ? '#22223F' : '#F8FAFC';
+      const nodeBorder  = themeDark ? '#3B3B5A' : '#CBD5E1';
+      const nodeText    = themeDark ? '#F5F5FA' : '#0F172A';
+      const accent      = '#4F46E5';
+
+      const nodes = GRAPH_DATA.nodes.map((n) => ({
+        id: n.id,
+        label: n.label || n.id,
+        title: n.title || n.label || n.id,
+        // Scale size 12-30 based on degree (connection count)
+        size: Math.max(12, Math.min(30, 10 + (n.degree || 0) * 1.5)),
+        shape: n.is_me ? 'diamond' : 'dot',
+        color: {
+          background: n.is_me ? accent : (n.highlight ? '#14B8A6' : nodeBg),
+          border:     n.is_me ? accent : (n.highlight ? '#14B8A6' : nodeBorder),
+          highlight:  { background: accent, border: accent },
+        },
+        borderWidth: n.highlight || n.is_me ? 3 : 1,
+        font: { color: nodeText, size: 11, face: 'Inter, sans-serif' },
+      }));
+
+      const edges = GRAPH_DATA.edges.map((e) => ({
+        from: e.from,
+        to: e.to,
+        title: 'strength ' + e.strength,
+        color: {
+          color: bandColor[e.band] || nodeBorder,
+          highlight: bandColor[e.band] || accent,
+          opacity: e.highlight ? 1.0 : 0.55,
+        },
+        width: e.highlight ? 3 : 1.2,
+        smooth: { type: 'dynamic' },
+      }));
+
+      const network = new vis.Network(
+        container,
+        { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) },
+        {
+          interaction: { hover: true, zoomView: true, dragView: true, tooltipDelay: 150 },
+          physics: {
+            stabilization: { iterations: 250 },
+            barnesHut: { gravitationalConstant: -3000, springLength: 140, springConstant: 0.04 },
+          },
+          nodes: { scaling: { min: 10, max: 40 } },
+          edges: { selectionWidth: 2 },
+        }
+      );
+
+      // If there's a highlighted path, center on "me" after stabilization.
+      network.once('stabilizationIterationsDone', () => {
+        const meNode = nodes.find((n) => n.id === 'me');
+        if (meNode) network.focus('me', { scale: 0.9, animation: true });
+      });
+
+      // Expose for debug
+      window._network = network;
+    })();
+  </script>
 </body>
 </html>

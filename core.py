@@ -375,6 +375,22 @@ class CSVRepository:
         "debank": "wallet",
     }
 
+    # Optional per-platform interaction columns in identities.csv. All
+    # integers; all optional (missing columns default to 0). Stored on
+    # SocialAccount.attributes[{suffix}] so the UI layer can render a
+    # per-platform breakdown without re-parsing the CSV.
+    _INTERACTION_COLUMNS: dict[str, tuple[str, ...]] = {
+        "twitter":   ("twitter_likes", "twitter_comments", "twitter_reposts"),
+        "farcaster": ("farcaster_recasts", "farcaster_replies"),
+        "linkedin":  ("linkedin_recommendations", "linkedin_endorsements"),
+        "debank":    ("debank_transactions",),
+    }
+
+    # Person-level aggregate columns. Stored on Person.attributes.
+    _PERSON_LEVEL_COLUMNS: tuple[str, ...] = (
+        "interaction_score", "last_interaction",
+    )
+
     def _load_accounts(
         self, people: list[Person]
     ) -> tuple[list[SocialAccount], list[tuple[str, str]]]:
@@ -433,14 +449,30 @@ class CSVRepository:
                         # identity layer can propose a merge. Do NOT
                         # silently overwrite the first claim's owner.
                         continue
+                    attrs: dict[str, str] = {}
+                    # Copy per-platform interaction counts if the
+                    # columns exist. Defaults to "0" when missing so
+                    # downstream code can int() them safely.
+                    for ic in self._INTERACTION_COLUMNS.get(col, ()):
+                        if ic in reader.fieldnames:
+                            attrs[ic] = (row.get(ic) or "0").strip() or "0"
                     account = SocialAccount(
                         id=acc_id,
                         platform=platform,
                         handle=handle,
                         owner_person_id=pid,
+                        attributes=attrs,
                     )
                     accounts[acc_id] = account
                     by_id[pid].accounts.append(account)
+                # Person-level aggregate columns (interaction_score,
+                # last_interaction). Only assigned if present and the
+                # person exists.
+                for pcol in self._PERSON_LEVEL_COLUMNS:
+                    if pcol in reader.fieldnames:
+                        val = (row.get(pcol) or "").strip()
+                        if val:
+                            by_id[pid].attributes[pcol] = val
         return list(accounts.values()), claims
 
     def _load_relationships(self, people: list[Person]) -> list[Relationship]:

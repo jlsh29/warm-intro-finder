@@ -267,34 +267,92 @@ def generate_edges(
     return sorted((a, b, s) for (a, b), s in edges.items())
 
 
-def generate_identities(_rng: random.Random, people: list[dict]) -> list[dict]:
+INTERACTION_COLUMNS = (
+    "twitter_likes", "twitter_comments", "twitter_reposts",
+    "farcaster_recasts", "farcaster_replies",
+    "linkedin_recommendations", "linkedin_endorsements",
+    "debank_transactions",
+)
+
+# Per-type scoring band (spec): 1-5→+1, 6-20→+3, 21-50→+5, 51+→+7.
+# Sum across columns, cap at 15.
+INTERACTION_SCORE_CAP = 15
+
+
+def _score_for_count(n: int) -> int:
+    if n <= 0:
+        return 0
+    if n <= 5:
+        return 1
+    if n <= 20:
+        return 3
+    if n <= 50:
+        return 5
+    return 7
+
+
+def _interaction_score(counts: dict[str, int]) -> int:
+    total = sum(_score_for_count(counts.get(c, 0)) for c in INTERACTION_COLUMNS)
+    return min(total, INTERACTION_SCORE_CAP)
+
+
+def _generate_interaction_counts(handles: dict, rng: random.Random) -> dict[str, int]:
+    """Realistic fake counts — zero if the person has no handle on the
+    relevant platform."""
+    c = {col: 0 for col in INTERACTION_COLUMNS}
+    if handles.get("twitter"):
+        c["twitter_likes"]    = rng.choices([0, 3, 12, 35, 75], [0.1, 0.3, 0.3, 0.2, 0.1])[0]
+        c["twitter_comments"] = rng.choices([0, 2, 8, 25, 60],  [0.15, 0.35, 0.3, 0.15, 0.05])[0]
+        c["twitter_reposts"]  = rng.choices([0, 2, 7, 22],      [0.2, 0.4, 0.3, 0.1])[0]
+    if handles.get("farcaster"):
+        c["farcaster_recasts"] = rng.choices([0, 2, 8, 25], [0.2, 0.4, 0.3, 0.1])[0]
+        c["farcaster_replies"] = rng.choices([0, 3, 10, 30, 55], [0.15, 0.35, 0.3, 0.15, 0.05])[0]
+    if handles.get("linkedin"):
+        c["linkedin_recommendations"] = rng.choices([0, 1, 3, 6], [0.55, 0.3, 0.12, 0.03])[0]
+        c["linkedin_endorsements"]    = rng.choices([0, 2, 8, 22, 60], [0.2, 0.35, 0.25, 0.15, 0.05])[0]
+    if handles.get("wallet"):  # mapped to debank column on write
+        c["debank_transactions"] = rng.choices([0, 1, 5, 15, 40, 80], [0.3, 0.25, 0.2, 0.15, 0.08, 0.02])[0]
+    return c
+
+
+def _random_last_interaction(rng: random.Random) -> str:
+    from datetime import datetime, timedelta
+    return (datetime.now() - timedelta(days=rng.randint(0, 90))).date().isoformat()
+
+
+def generate_identities(rng: random.Random, people: list[dict]) -> list[dict]:
     """Emit one wide-format identities row per person.
 
-    Row shape: `{person_id, twitter, farcaster, linkedin, debank}` with
-    empty strings for platforms the person doesn't own. Every included
-    person has at least one platform filled by construction (the
-    generator excludes zero-platform persons). The `_rng` arg is
-    unused here but kept on the signature so future per-row metadata
-    (e.g. `dm` flags re-introduced as extra columns) can be added
-    without breaking the caller.
+    Row shape: `{person_id, twitter, farcaster, linkedin, debank,
+    twitter_likes, …, interaction_score, last_interaction}`. Empty
+    strings for platforms the person doesn't own. Counts are zero on
+    platforms the person isn't on.
     """
     rows: list[dict] = []
     for p in people:
         handles = p["handles"]
-        rows.append(
-            {
-                "person_id": p["id"],
-                "twitter": handles.get("twitter", ""),
-                "farcaster": handles.get("farcaster", ""),
-                "linkedin": handles.get("linkedin", ""),
-                # Internal platform name is `wallet`; CSV column is `debank`.
-                "debank": handles.get("wallet", ""),
-            }
-        )
+        counts = _generate_interaction_counts(handles, rng)
+        score = _interaction_score(counts)
+        row = {
+            "person_id": p["id"],
+            "twitter": handles.get("twitter", ""),
+            "farcaster": handles.get("farcaster", ""),
+            "linkedin": handles.get("linkedin", ""),
+            # Internal platform name is `wallet`; CSV column is `debank`.
+            "debank": handles.get("wallet", ""),
+            **counts,
+            "last_interaction": _random_last_interaction(rng) if any(counts.values()) else "",
+            "interaction_score": score,
+        }
+        rows.append(row)
     return rows
 
 
-WIDE_IDENTITY_COLUMNS = ("person_id", "twitter", "farcaster", "linkedin", "debank")
+WIDE_IDENTITY_COLUMNS = (
+    "person_id", "twitter", "farcaster", "linkedin", "debank",
+    *INTERACTION_COLUMNS,
+    "last_interaction", "interaction_score",
+)
 
 
 def write_identities(path: str, rows: list[dict]) -> None:
@@ -377,11 +435,30 @@ def summarize(people: list[dict], edges: list[tuple[str, str, int]]) -> None:
     print(f"isolated nodes: {isolated}")
 
 
+def _boost_edges(
+    edges: list[tuple[str, str, int]],
+    identities: list[dict],
+) -> list[tuple[str, str, int]]:
+    """Apply interaction_score boost to edge strengths, capped at 15.
+
+    For edge (A,B), final = min(base + max(A.score, B.score), 15).
+    Using MAX (not sum/avg) keeps the cap meaningful when both
+    endpoints are highly active.
+    """
+    scores = {r["person_id"]: int(r.get("interaction_score", 0) or 0) for r in identities}
+    boosted: list[tuple[str, str, int]] = []
+    for a, b, s in edges:
+        boost = max(scores.get(a, 0), scores.get(b, 0))
+        boosted.append((a, b, min(int(s) + boost, 15)))
+    return boosted
+
+
 def main() -> None:
     rng = random.Random(SEED)
     people, team_members = generate_people(rng)
     edges = generate_edges(rng, people, team_members)
     identities = generate_identities(rng, people)
+    edges = _boost_edges(edges, identities)
     write_people("people.csv", people)
     write_edges("edges.csv", edges)
     write_identities("identities.csv", identities)

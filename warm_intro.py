@@ -287,6 +287,175 @@ def _build_graph_from_payload(
     )
 
 
+def _single_source_dijkstra_path(
+    graph: Graph,
+    source: str,
+    target: str,
+    excluded_edges: set[frozenset[str]] | None = None,
+    excluded_nodes: set[str] | None = None,
+) -> tuple[float, list[str]] | None:
+    """Standard Dijkstra from `source` to `target` honoring exclusions.
+
+    Edges are addressed as `frozenset({u, v})` since the routable graph
+    is undirected. Returns `(cost, [node ids from source to target])` or
+    `None` when unreachable.
+    """
+    excluded_edges = excluded_edges or set()
+    excluded_nodes = excluded_nodes or set()
+    if source in excluded_nodes:
+        return None
+    dist: dict[str, float] = {source: 0.0}
+    prev: dict[str, str] = {}
+    heap: list[tuple[float, int, str]] = [(0.0, 0, source)]
+    counter = 1
+    visited: set[str] = set()
+    while heap:
+        d, _, node = heapq.heappop(heap)
+        if node in visited:
+            continue
+        visited.add(node)
+        if node == target:
+            break
+        for nb in graph.adjacency.get(node, ()):
+            if nb in excluded_nodes or nb in visited:
+                continue
+            if frozenset((node, nb)) in excluded_edges:
+                continue
+            nd = d + graph.edge_cost(node, nb)
+            if nd < dist.get(nb, float("inf")) - EDGE_DIST_TOL:
+                dist[nb] = nd
+                prev[nb] = node
+                heapq.heappush(heap, (nd, counter, nb))
+                counter += 1
+    if target not in dist:
+        return None
+    path: list[str] = [target]
+    n = target
+    while n in prev:
+        n = prev[n]
+        path.append(n)
+    path.reverse()
+    return dist[target], path
+
+
+def yen_k_shortest_paths(
+    graph: Graph, source: str, target: str, k: int
+) -> list[tuple[float, list[str]]]:
+    """Up to k simple paths source → target, ranked by total cost ascending.
+
+    Classic Yen's algorithm. Unlike `multi_source_dijkstra` +
+    `enumerate_paths` this returns paths of *different* total costs, so
+    the UI can always show a useful ranking even when the 2nd-best path
+    is worse than the 1st.
+    """
+    if k <= 0:
+        return []
+    if source == target:
+        return [(0.0, [source])]
+    first = _single_source_dijkstra_path(graph, source, target)
+    if first is None:
+        return []
+    accepted: list[tuple[float, list[str]]] = [first]
+    candidates: list[tuple[float, int, list[str]]] = []
+    counter = 0
+    while len(accepted) < k:
+        _, prev_path = accepted[-1]
+        for i in range(len(prev_path) - 1):
+            spur_node = prev_path[i]
+            root_path = prev_path[: i + 1]
+            excluded_edges: set[frozenset[str]] = set()
+            for _, p in accepted:
+                if len(p) > i and p[: i + 1] == root_path:
+                    excluded_edges.add(frozenset((p[i], p[i + 1])))
+            excluded_nodes: set[str] = set(root_path[:-1])
+            spur = _single_source_dijkstra_path(
+                graph, spur_node, target, excluded_edges, excluded_nodes
+            )
+            if spur is None:
+                continue
+            spur_cost, spur_path = spur
+            root_cost = sum(
+                graph.edge_cost(root_path[j], root_path[j + 1])
+                for j in range(len(root_path) - 1)
+            )
+            total_path = root_path[:-1] + spur_path
+            total_cost = root_cost + spur_cost
+            if any(p == total_path for _, p in accepted):
+                continue
+            if any(p == total_path for _, _, p in candidates):
+                continue
+            counter += 1
+            heapq.heappush(candidates, (total_cost, counter, total_path))
+        if not candidates:
+            break
+        cost, _, cand = heapq.heappop(candidates)
+        accepted.append((cost, cand))
+    return accepted
+
+
+def find_ranked_paths(
+    graph: Graph, entry: str, target: str, k: int = 5
+) -> dict:
+    """Single-entry wrapper around Yen's used by the Flask UI.
+
+    Returns:
+        {
+          "reachable": bool,
+          "entry_used": str | None,
+          "paths": [
+            {"nodes": [id,...], "hops": int, "cost": float,
+             "total_strength": float, "rank": int},
+            ...
+          ],
+          "explanation": str,
+        }
+    """
+    entry_id = resolve(graph, entry)
+    target_id = resolve(graph, target)
+    if entry_id == target_id:
+        return {
+            "reachable": True,
+            "entry_used": entry_id,
+            "paths": [{
+                "rank": 1, "nodes": [entry_id], "hops": 0,
+                "cost": 0.0, "total_strength": 0.0,
+            }],
+            "explanation": "Target is the entry point; no introduction needed.",
+        }
+    raw = yen_k_shortest_paths(graph, entry_id, target_id, k)
+    if not raw:
+        return {
+            "reachable": False,
+            "entry_used": entry_id,
+            "paths": [],
+            "explanation": (
+                f"No path exists from {graph.label(entry_id)} to "
+                f"{graph.label(target_id)} in the current network."
+            ),
+        }
+    out = []
+    for i, (cost, path) in enumerate(raw, start=1):
+        out.append({
+            "rank": i,
+            "nodes": path,
+            "hops": len(path) - 1,
+            "cost": cost,
+            "total_strength": path_total_strength(graph, path),
+        })
+    best = out[0]
+    return {
+        "reachable": True,
+        "entry_used": entry_id,
+        "paths": out,
+        "explanation": (
+            f"Found {len(out)} ranked path(s). Best is {best['hops']} hop(s) "
+            f"with total strength {_fmt_strength(best['total_strength'])} "
+            f"(cost {best['cost']:.3f}). Subsequent paths are progressively "
+            f"longer or weaker."
+        ),
+    }
+
+
 def resolve(graph: Graph, token: str) -> str:
     token = token.strip()
     if token in graph.id_to_name:
