@@ -10,6 +10,21 @@ result.json
 network_report.json
 network_report.txt
 
+# Secrets
+.env
+
+# Throwaway CSV test outputs from connection_discovery dry/live runs
+edges_dryrun.csv
+edges_live.csv
+
+# Per-session runtime state written by the Flask app
+outreach_status.json
+pending_messages.json
+
+# Per-session state written by social_graph_collector
+collection_report.json
+collection_progress.json
+
 # OS / editor
 .DS_Store
 Thumbs.db
