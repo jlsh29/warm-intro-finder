@@ -606,6 +606,15 @@
     .mp-chip.mutual::before { content: "✔"; color: var(--check); }
     .mp-chip.missing::before { content: "✖"; color: var(--cross); }
     .mp-chip svg { width: 11px; height: 11px; fill: currentColor; }
+    /* FIX4 — legend */
+    .mutual-legend {
+      display: flex; gap: 1.2rem; flex-wrap: wrap;
+      padding: 0.65rem 0.85rem; margin-top: 0.25rem;
+      background: var(--surface-alt); border: 1px dashed var(--border);
+      border-radius: 10px; font-size: 0.78rem; color: var(--ink-soft);
+    }
+    .mutual-legend-item { display: inline-flex; align-items: center; gap: 0.45rem; }
+    .mp-chip.legend-demo { pointer-events: none; font-weight: 500; }
 
     /* ---------- Outreach ---------- */
     .outreach-card { display: none; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px dashed var(--border); }
@@ -818,18 +827,33 @@
       min-height: 110px; resize: vertical;
     }
     .composer-send {
-      margin-top: 0.6rem; display: flex; justify-content: flex-end;
+      margin-top: 1rem; display: flex; justify-content: flex-end;
+      gap: 0.5rem; flex-wrap: wrap; align-items: center;
     }
     .composer-send button {
       background: var(--accent); color: #fff; border: 0;
-      padding: 0.7rem 1.4rem; border-radius: 10px;
-      font-family: inherit; font-size: 0.9rem; font-weight: 600;
-      cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem;
-      box-shadow: 0 4px 10px rgba(79, 70, 229, 0.25);
-      transition: transform .1s, background .15s;
+      padding: 0.85rem 1.75rem; border-radius: 10px;
+      font-family: inherit; font-size: 0.95rem; font-weight: 700;
+      cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+      box-shadow: 0 6px 14px rgba(79, 70, 229, 0.3);
+      transition: transform .1s, background .15s, box-shadow .15s;
+      min-height: 44px;
     }
-    .composer-send button:hover { background: var(--accent-hover); transform: translateY(-1px); }
-    .composer-send button svg { width: 14px; height: 14px; }
+    .composer-send button:hover {
+      background: var(--accent-hover); transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(79, 70, 229, 0.4);
+    }
+    .composer-send button[type="submit"] { min-width: 140px; }
+    .composer-send button svg { width: 16px; height: 16px; }
+    @media (max-width: 720px) {
+      .composer-send {
+        flex-direction: column; align-items: stretch; justify-content: stretch;
+      }
+      .composer-send button,
+      .composer-send button[type="submit"] {
+        width: 100%; min-width: 0;
+      }
+    }
 
     /* ---- Pending Messages list ---- */
     .pending-card {
@@ -900,7 +924,7 @@
     .stats-dashboard {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 0.7rem; margin-bottom: 1.5rem;
+      gap: 0.7rem; margin-bottom: 0.7rem;
     }
     .stat-card {
       background: var(--surface); border: 1px solid var(--border);
@@ -1049,6 +1073,297 @@
       .btn-ghost { width: 100%; justify-content: center; }
       .mutual-panel { grid-template-columns: 1fr; }
     }
+
+    /* =====================================================================
+       ADD-ON FEATURES (F1-F8) — appended styles; re-use existing tokens.
+       ===================================================================== */
+    .xa-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.15rem 1.25rem;
+      margin: 1rem 0 0;
+      box-shadow: var(--shadow-sm);
+    }
+    .xa-section-head {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 0.6rem; flex-wrap: wrap;
+    }
+    .xa-section-head h2 {
+      font-size: 1.05rem; margin: 0; display: flex; align-items: center;
+      gap: 0.45rem; color: var(--ink);
+    }
+    .xa-toggle {
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); border-radius: 8px; padding: 0.3rem 0.7rem;
+      cursor: pointer; font-size: 0.8rem; font-weight: 500;
+    }
+    .xa-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* F3 — Success tracker pipeline */
+    .xa-stage-pipeline {
+      margin-top: 0.9rem;
+      padding: 0.9rem 1rem;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .xa-stage-pipeline h4 {
+      margin: 0 0 0.6rem; font-size: 0.85rem; color: var(--ink);
+      display: flex; align-items: center; gap: 0.35rem;
+    }
+    .xa-stage-bar {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem;
+      margin-bottom: 0.5rem;
+    }
+    .xa-stage-step {
+      padding: 0.5rem 0.5rem; border-radius: 8px;
+      background: var(--surface); border: 1px solid var(--border);
+      text-align: center; cursor: pointer; font-size: 0.75rem;
+      color: var(--ink-soft); transition: all .15s;
+    }
+    .xa-stage-step.active {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+    .xa-stage-step.done {
+      background: var(--success-soft); color: var(--check);
+      border-color: var(--check);
+    }
+    .xa-stage-label { font-size: 0.7rem; color: var(--muted); text-align: center; }
+
+    /* F3 extra stats tiles — aligned with .stats-dashboard spacing */
+    .xa-extra-stats {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.7rem;
+      margin: 0 0 1.5rem;
+    }
+    .xa-stat-tile {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 0.9rem 1rem;
+      display: flex; flex-direction: column; gap: 0.25rem;
+      box-shadow: var(--shadow-sm);
+      transition: transform .15s, border-color .15s;
+    }
+    .xa-stat-tile:hover { transform: translateY(-1px); border-color: var(--border-strong); }
+    .xa-stat-tile .k {
+      font-size: 0.68rem; font-weight: 600; color: var(--muted);
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .xa-stat-tile .v {
+      font-size: 1.5rem; font-weight: 700; color: var(--ink);
+      letter-spacing: -0.02em; line-height: 1; margin-top: 0.1rem;
+    }
+    @media (max-width: 720px) {
+      .xa-extra-stats { grid-template-columns: repeat(2, 1fr); }
+      .xa-stage-bar { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* F4 — Best time: redesigned layout */
+    .xa-best-time {
+      margin-top: 0.9rem; padding: 1.1rem 1.25rem;
+      background: linear-gradient(135deg, var(--accent-soft), transparent);
+      border: 1px solid var(--accent-ring);
+      border-radius: 12px;
+    }
+    .xa-best-time-hero {
+      display: flex; gap: 0.85rem; align-items: flex-start;
+      padding-bottom: 0.8rem; margin-bottom: 0.9rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .xa-best-time-clock {
+      font-size: 2rem; line-height: 1; flex-shrink: 0; margin-top: 0.1rem;
+    }
+    .xa-best-time-headline { flex: 1; min-width: 0; }
+    .xa-best-time-kicker {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--muted); font-weight: 700; margin-bottom: 0.15rem;
+    }
+    .xa-best-time-main {
+      font-size: 1.35rem; font-weight: 700; color: var(--ink);
+      line-height: 1.15; letter-spacing: -0.01em;
+    }
+    .xa-best-time-reason {
+      color: var(--ink-soft); font-size: 0.86rem; line-height: 1.5;
+      margin-top: 0.45rem;
+    }
+    .xa-best-time-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.55rem;
+    }
+    .xa-bt-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.65rem 0.8rem;
+      display: flex; flex-direction: column; gap: 0.15rem;
+    }
+    .xa-bt-head {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-weight: 600; color: var(--ink); font-size: 0.84rem;
+    }
+    .xa-bt-head .xa-bt-icon { width: 14px; height: 14px; flex-shrink: 0; }
+    .xa-bt-time { font-size: 0.82rem; color: var(--accent); font-weight: 600; }
+    .xa-bt-reason { font-size: 0.72rem; color: var(--muted); line-height: 1.4; }
+    .xa-best-time-note {
+      margin-top: 0.7rem; padding-top: 0.6rem;
+      border-top: 1px dashed var(--border);
+      font-size: 0.72rem; color: var(--muted); font-style: italic;
+      display: flex; align-items: center; gap: 0.35rem;
+    }
+
+    /* F1 — Generate with AI button (next to composer) */
+    .xa-ai-row {
+      display: flex; gap: 0.5rem; align-items: center;
+      margin-top: 0.4rem; flex-wrap: wrap;
+    }
+    .xa-ai-btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: linear-gradient(135deg, #8B5CF6, #6366F1);
+      color: #fff; border: none; padding: 0.45rem 0.8rem;
+      border-radius: 8px; cursor: pointer; font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .xa-ai-btn:hover { filter: brightness(1.1); }
+    .xa-ai-btn[disabled] { opacity: 0.6; cursor: wait; }
+    .xa-ai-spinner {
+      width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff; border-radius: 50%;
+      animation: xa-spin 0.8s linear infinite; display: none;
+    }
+    .xa-ai-btn.loading .xa-ai-spinner { display: inline-block; }
+    @keyframes xa-spin { to { transform: rotate(360deg); } }
+    .xa-ai-hint { font-size: 0.72rem; color: var(--muted); }
+
+    /* F7 — Compare paths modal (beginner-friendly redesign) */
+    .xa-compare-btn {
+      margin-top: 1rem;
+      background: var(--accent-soft); color: var(--accent);
+      border: 1px solid var(--accent-ring); padding: 0.6rem 1rem;
+      border-radius: 10px; cursor: pointer; font-size: 0.9rem; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+    }
+    .xa-compare-btn:hover { background: var(--accent); color: #fff; }
+    .xa-modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+      display: none; align-items: center; justify-content: center;
+      z-index: 9999; padding: 1rem;
+    }
+    .xa-modal-backdrop.open { display: flex; }
+    .xa-modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; max-width: 1080px; width: 100%;
+      max-height: 90vh; overflow: auto; padding: 1.4rem 1.6rem;
+      box-shadow: var(--shadow-lg);
+    }
+    .xa-modal-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .xa-modal-head h2 {
+      margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 0.45rem;
+    }
+    .xa-modal-close {
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); border-radius: 8px; cursor: pointer;
+      width: 34px; height: 34px; font-size: 1rem;
+    }
+    .xa-modal-close:hover { background: var(--error-soft); color: var(--error); border-color: var(--error-border); }
+    .xa-compare-intro {
+      padding: 0.75rem 0.9rem; background: var(--accent-soft);
+      border: 1px solid var(--accent-ring); border-radius: 10px;
+      margin: 0.4rem 0 1.2rem; color: var(--ink-soft); font-size: 0.88rem; line-height: 1.5;
+    }
+    .xa-compare-intro strong { color: var(--ink); }
+    .xa-compare-cards {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 0.85rem;
+    }
+    .xa-compare-card {
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1rem 1.1rem;
+      display: flex; flex-direction: column; gap: 0.5rem; position: relative;
+    }
+    .xa-compare-card.recommended {
+      border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft);
+    }
+    .xa-compare-card-head {
+      display: flex; align-items: center; gap: 0.4rem; justify-content: space-between;
+    }
+    .xa-compare-card-title {
+      font-weight: 700; font-size: 1rem; color: var(--ink);
+      display: inline-flex; align-items: center; gap: 0.35rem;
+    }
+    .xa-recommended-badge {
+      background: var(--accent); color: #fff; font-size: 0.68rem;
+      padding: 0.2rem 0.55rem; border-radius: 999px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      display: inline-flex; align-items: center; gap: 0.25rem;
+    }
+    .xa-metric {
+      display: flex; flex-direction: column; gap: 0.1rem;
+      padding: 0.55rem 0.65rem; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px;
+    }
+    .xa-metric-head {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-size: 0.75rem; color: var(--muted); font-weight: 600;
+    }
+    .xa-metric-icon { font-size: 0.95rem; }
+    .xa-metric-value {
+      font-size: 1.05rem; font-weight: 700; color: var(--ink);
+    }
+    .xa-metric-hint {
+      font-size: 0.72rem; color: var(--muted); line-height: 1.4;
+    }
+    .xa-risk-low    { color: var(--check); font-weight: 700; }
+    .xa-risk-medium { color: var(--warn);  font-weight: 700; }
+    .xa-risk-high   { color: var(--error); font-weight: 700; }
+    .xa-risk-unknown { color: var(--muted); font-weight: 700; }
+    .xa-select-best {
+      margin-top: 1.2rem; background: var(--accent); color: #fff;
+      border: none; border-radius: 12px; padding: 1rem 1.5rem;
+      cursor: pointer; font-weight: 700; font-size: 1rem;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+      width: 100%;
+      box-shadow: 0 6px 18px rgba(79, 70, 229, 0.35);
+      transition: transform .1s, box-shadow .15s;
+    }
+    .xa-select-best:hover {
+      background: var(--accent-hover); transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(79, 70, 229, 0.5);
+    }
+
+    /* Navbar link */
+    .xa-nav-link {
+      color: var(--ink-soft); text-decoration: none;
+      padding: 0.3rem 0.65rem; border-radius: 8px;
+      font-weight: 600; font-size: 0.82rem;
+      border: 1px solid var(--border); background: var(--surface-alt);
+    }
+    .xa-nav-link:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* Path card highlighted when "Select Best" pressed */
+    .path-card.xa-best-highlight {
+      box-shadow: 0 0 0 3px var(--accent), var(--shadow-md);
+      transition: box-shadow .4s;
+    }
+
+    /* FIX6 — Composer Send loading + success */
+    .composer-send button[disabled] { opacity: 0.75; cursor: wait; }
+    .composer-send button.loading { background: var(--accent-hover); }
+    .composer-send button.done {
+      background: var(--success); color: #fff; opacity: 1; cursor: default;
+    }
+    .composer-send button.done:hover { background: var(--success); transform: none; }
+    .xa-send-spinner {
+      width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff; border-radius: 50%;
+      display: inline-block; animation: xa-spin 0.8s linear infinite;
+      margin-right: 0.35rem; vertical-align: -2px;
+    }
+    .composer-success {
+      margin-top: 0.5rem; font-size: 0.82rem; font-weight: 600;
+      padding: 0.35rem 0.55rem; border-radius: 6px;
+    }
+    .composer-success.ok  { background: var(--success-soft); color: var(--check); }
+    .composer-success.err { background: var(--error-soft);   color: var(--error); }
   </style>
 </head>
 <body>
@@ -1070,6 +1385,8 @@
           <span class="dot" aria-hidden="true"></span>
           <strong>{{ dataset.count }}</strong>&nbsp;people
         </div>
+        <a href="/guide" class="xa-nav-link" title="How to use Warm Intro Finder">📘 How to Use</a>
+        <a href="/report" class="xa-nav-link" title="Weekly network growth report">📊 View Weekly Report</a>
         <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
           <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
           <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
@@ -1155,6 +1472,30 @@
       <div class="stat-card accent">
         <div class="stat-head"><span class="stat-icon">📊</span><span class="stat-label">Avg Strength</span></div>
         <div class="stat-value">{{ '%.1f'|format(stats.avg_strength) }}</div>
+      </div>
+    </div>
+
+    <!-- F3 — outreach statistics tiles (additive, separate row) -->
+    <div class="xa-extra-stats" id="xa-outreach-stats"
+         data-total="{{ outreach_stats.total_outreach }}"
+         data-replies="{{ outreach_stats.reply_count }}"
+         data-meetings="{{ outreach_stats.meeting_count }}"
+         data-successes="{{ outreach_stats.success_count }}">
+      <div class="xa-stat-tile">
+        <div class="k">Total Outreach</div>
+        <div class="v" id="xa-stat-total">{{ outreach_stats.total_outreach }}</div>
+      </div>
+      <div class="xa-stat-tile">
+        <div class="k">Reply Rate</div>
+        <div class="v" id="xa-stat-reply">{{ outreach_stats.reply_rate }}%</div>
+      </div>
+      <div class="xa-stat-tile">
+        <div class="k">Meeting Rate</div>
+        <div class="v" id="xa-stat-meeting">{{ outreach_stats.meeting_rate }}%</div>
+      </div>
+      <div class="xa-stat-tile">
+        <div class="k">Success Rate</div>
+        <div class="v" id="xa-stat-success">{{ outreach_stats.success_rate }}%</div>
       </div>
     </div>
 
@@ -1404,16 +1745,82 @@
                       </div>
                       <div class="mutual-platforms">
                         {% for mp in m.platforms %}
-                          <span class="mp-chip {% if mp.mutual %}mutual{% else %}missing{% endif %}">{{ mp.platform_label }}</span>
+                          <span class="mp-chip {% if mp.mutual %}mutual{% else %}missing{% endif %}"
+                                title="{% if mp.mutual %}Connected on {{ mp.platform_label }}{% else %}Not connected on {{ mp.platform_label }}{% endif %}">{{ mp.platform_label }}</span>
                         {% endfor %}
                       </div>
                     </div>
                   {% endfor %}
+                  <div class="mutual-legend">
+                    <span class="mutual-legend-item"><span class="mp-chip mutual legend-demo">Platform</span> Connected with you on this platform</span>
+                    <span class="mutual-legend-item"><span class="mp-chip missing legend-demo">Platform</span> Not connected on this platform</span>
+                  </div>
                 </div>
 
                 <!-- Outreach (hidden until Select is pressed) -->
                 <div class="outreach-card" id="outreach-{{ path.rank }}">
                   <h2 style="margin-top: 0.5rem;">Reach out to {{ path.target.handle }}</h2>
+
+                  {% if result.best_time %}
+                    {% set _platform_names = {'twitter': 'Twitter / X', 'farcaster': 'Farcaster', 'linkedin': 'LinkedIn', 'wallet': 'DeBank'} %}
+                    {% set _platform_reasons = {
+                      'twitter':   'Most Twitter users scroll mornings and late evenings on weekdays.',
+                      'farcaster': 'Farcaster activity peaks in the evening US hours.',
+                      'linkedin':  'LinkedIn sees the highest engagement during business hours.',
+                      'wallet':    'On-chain activity clusters in the evenings, matching trader schedules.'
+                    } %}
+                    <div class="xa-best-time" data-xa-best-time>
+                      <div class="xa-best-time-hero">
+                        <div class="xa-best-time-clock" aria-hidden="true">⏰</div>
+                        <div class="xa-best-time-headline">
+                          <div class="xa-best-time-kicker">Best time to reach out</div>
+                          <div class="xa-best-time-main">{{ result.best_time.label }}</div>
+                          <div class="xa-best-time-reason">{{ result.best_time.reason }}</div>
+                        </div>
+                      </div>
+                      {% if result.best_time.per_platform %}
+                        <div class="xa-best-time-grid">
+                          {% for p, tip in result.best_time.per_platform.items() %}
+                            <div class="xa-bt-card">
+                              <div class="xa-bt-head">
+                                {% if p == 'twitter' %}<svg class="xa-bt-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                {% elif p == 'farcaster' %}<svg class="xa-bt-icon" viewBox="0 0 225 225" fill="currentColor"><path d="M58.232 0h108.536v225h-15.909v-102.969h-.156c-1.757-19.47-18.115-34.719-38.04-34.719s-36.283 15.249-38.04 34.719h-.156v102.969h-15.909z"/><path d="M20.233 31.964l6.466 21.832h5.472v149.373c-2.748 0-4.976 2.229-4.976 4.976v5.969h-.995c-2.748 0-4.976 2.228-4.976 4.976v5.91h55.73v-5.91c0-2.748-2.228-4.976-4.976-4.976h-.995v-5.969c0-2.747-2.227-4.976-4.975-4.976h-5.472V31.964zm140.594 0l-6.466 21.832h-5.472v149.373c2.748 0 4.976 2.229 4.976 4.976v5.969h.995c2.748 0 4.976 2.228 4.976 4.976v5.91h-55.73v-5.91c0-2.748 2.228-4.976 4.976-4.976h.995v-5.969c0-2.747 2.227-4.976 4.975-4.976h5.472V31.964z"/></svg>
+                                {% elif p == 'linkedin' %}<svg class="xa-bt-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                                {% elif p == 'wallet' %}<svg class="xa-bt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2v-1.5M21 7.5H14a2.5 2.5 0 000 5H21v-5z"/></svg>
+                                {% endif %}
+                                <span>{{ _platform_names.get(p, p.title()) }}</span>
+                              </div>
+                              <div class="xa-bt-time">{{ tip }}</div>
+                              <div class="xa-bt-reason">{{ _platform_reasons.get(p, 'Timing aligned with typical activity on this platform.') }}</div>
+                            </div>
+                          {% endfor %}
+                        </div>
+                        <div class="xa-best-time-note">
+                          <span>ℹ️</span> These times are based on past interaction patterns.
+                        </div>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+
+                  <!-- F3 — Success pipeline (stages 1-4) -->
+                  {% set init_stage = result.target_status.stage if result.target_status.stage is defined else 0 %}
+                  <div class="xa-stage-pipeline" data-xa-pipeline="{{ path.target.id }}" data-init-stage="{{ init_stage }}">
+                    <h4><span>🎯</span> Warm Intro Progress</h4>
+                    <div class="xa-stage-bar">
+                      <button type="button" class="xa-stage-step {% if init_stage == 1 %}active{% elif init_stage > 1 %}done{% endif %}" data-stage="1">1. Message Sent</button>
+                      <button type="button" class="xa-stage-step {% if init_stage == 2 %}active{% elif init_stage > 2 %}done{% endif %}" data-stage="2">2. Awaiting Reply</button>
+                      <button type="button" class="xa-stage-step {% if init_stage == 3 %}active{% elif init_stage > 3 %}done{% endif %}" data-stage="3">3. Meeting Scheduled</button>
+                      <button type="button" class="xa-stage-step {% if init_stage == 4 %}active{% endif %}" data-stage="4">4. Goal Achieved</button>
+                    </div>
+                    <div class="xa-stage-label" data-xa-stage-label>
+                      {% if init_stage == 0 %}Stages advance automatically as you send, open, and mark messages.
+                      {% elif init_stage == 1 %}Stage 1/4: Message Sent ✓
+                      {% elif init_stage == 2 %}Stage 2/4: Awaiting Reply ✓
+                      {% elif init_stage == 3 %}Stage 3/4: Meeting Scheduled ✓
+                      {% else %}Stage 4/4: Goal Achieved 🎉
+                      {% endif %}
+                    </div>
+                  </div>
 
                   <!-- Master CTA: expand all platforms -->
                   <button type="button" class="send-intro-btn" data-expand-platforms="{{ path.rank }}">
@@ -1482,11 +1889,23 @@
                         <textarea id="cmp-msg-{{ path.rank }}" name="message" class="composer-message">{{ result.composer_message }}</textarea>
                       </div>
                       <div class="composer-send">
+                        <button type="button" class="xa-ai-btn"
+                                data-xa-ai-generate
+                                data-target-id="{{ path.target.id }}"
+                                data-mutual-id="{% if path.nodes|length > 2 %}{{ path.nodes[-2].id }}{% endif %}"
+                                data-platform="{% if path.direct_outreach %}{{ path.direct_outreach[0].platform }}{% else %}direct{% endif %}"
+                                data-msg-id="cmp-msg-{{ path.rank }}">
+                          <span class="xa-ai-spinner" aria-hidden="true"></span>
+                          <span>✨</span> Generate with AI
+                        </button>
                         <button type="submit">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                           Send
                         </button>
                       </div>
+                      {% if not ai_key_present %}
+                        <div class="xa-ai-hint">Set <code>ANTHROPIC_API_KEY</code> to enable AI-generated messages.</div>
+                      {% endif %}
                     </form>
 
                   </div>
@@ -1519,6 +1938,93 @@
 
               </div>
             {% endfor %}
+
+            {% if result.paths and result.paths|length > 1 %}
+              <button type="button" class="xa-compare-btn" id="xa-open-compare">🔀 Compare Paths</button>
+              <div class="xa-modal-backdrop" id="xa-compare-modal" aria-hidden="true">
+                <div class="xa-modal" role="dialog" aria-modal="true">
+                  <div class="xa-modal-head">
+                    <h2>🔀 Compare your options</h2>
+                    <button type="button" class="xa-modal-close" id="xa-compare-close" aria-label="Close">✕</button>
+                  </div>
+
+                  <div class="xa-compare-intro">
+                    Here are <strong>{{ result.paths|length }} ways</strong> to reach your target.
+                    We recommend <strong>Path 1</strong> because it has the fewest steps and strongest connections.
+                    Compare them below and pick the one that looks best to you.
+                  </div>
+
+                  <div class="xa-compare-cards">
+                    {% for p in result.paths %}
+                      {% set is_best = loop.first %}
+                      <div class="xa-compare-card {% if is_best %}recommended{% endif %}">
+                        <div class="xa-compare-card-head">
+                          <span class="xa-compare-card-title">{{ p.medal }} Path #{{ p.rank }}</span>
+                          {% if is_best %}<span class="xa-recommended-badge">⭐ Recommended</span>{% endif %}
+                        </div>
+
+                        <div class="xa-metric">
+                          <div class="xa-metric-head"><span class="xa-metric-icon">👥</span> People between you and target</div>
+                          <div class="xa-metric-value">{{ p.hops - 1 if p.hops > 0 else 0 }}</div>
+                          <div class="xa-metric-hint">{{ p.hops }} step{{ '' if p.hops == 1 else 's' }} total. Fewer is usually easier.</div>
+                        </div>
+
+                        <div class="xa-metric">
+                          <div class="xa-metric-head"><span class="xa-metric-icon">💪</span> How strong are all connections combined</div>
+                          <div class="xa-metric-value">{{ '%.1f'|format(p.total_strength) }}</div>
+                          <div class="xa-metric-hint">Summed strength across every hop. Higher = warmer chain.</div>
+                        </div>
+
+                        <div class="xa-metric">
+                          <div class="xa-metric-head"><span class="xa-metric-icon">🪢</span> Least connected person in this path</div>
+                          <div class="xa-metric-value">{{ p.weakest_hop }}</div>
+                          <div class="xa-metric-hint">The weakest hop — the bottleneck in your path.</div>
+                        </div>
+
+                        <div class="xa-metric">
+                          <div class="xa-metric-head"><span class="xa-metric-icon">🔥</span> Most connected person in this path</div>
+                          <div class="xa-metric-value">{{ p.strongest_hop }}</div>
+                          <div class="xa-metric-hint">Your strongest hop — the high-trust link.</div>
+                        </div>
+
+                        <div class="xa-metric">
+                          <div class="xa-metric-head"><span class="xa-metric-icon">🎯</span> How likely this path will work</div>
+                          <div class="xa-metric-value xa-risk-{{ p.risk_band }}">
+                            {% if p.risk_level == 'Low' %}Low risk — all strong{% elif p.risk_level == 'Medium' %}Medium risk{% elif p.risk_level == 'High' %}High risk — weak link{% else %}{{ p.risk_level }}{% endif %}
+                          </div>
+                          <div class="xa-metric-hint">Low = every hop has strength 10+. High = at least one hop is weak.</div>
+                        </div>
+
+                        <div class="xa-metric">
+                          <div class="xa-metric-head"><span class="xa-metric-icon">📬</span> Best platform to reach out on</div>
+                          <div class="xa-metric-value">
+                            {% if p.direct_outreach %}{{ p.direct_outreach[0].platform_label }}{% else %}—{% endif %}
+                          </div>
+                          <div class="xa-metric-hint">
+                            {% if p.direct_outreach|length > 1 %}
+                              Backup: {% for o in p.direct_outreach[1:] %}{{ o.platform_label }}{% if not loop.last %}, {% endif %}{% endfor %}
+                            {% else %}
+                              No backup platform yet.
+                            {% endif %}
+                          </div>
+                        </div>
+
+                        <div class="xa-metric">
+                          <div class="xa-metric-head"><span class="xa-metric-icon">⭐</span> Overall rating of this path</div>
+                          <div class="xa-metric-value">{{ '%.2f'|format(p.score) }} / 1.00</div>
+                          <div class="xa-metric-hint">Mix of steps (40%), mutuals (35%), and strength (25%).</div>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+
+                  <button type="button" class="xa-select-best" id="xa-select-best"
+                          data-best-rank="{{ result.paths[0].rank }}">
+                    ✓ Select Best Path (Path #{{ result.paths[0].rank }})
+                  </button>
+                </div>
+              </div>
+            {% endif %}
 
             <div class="explanation">{{ result.explanation }}</div>
           {% endif %}
@@ -1601,6 +2107,8 @@
         const next = cur === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', next);
         try { localStorage.setItem('theme', next); } catch (e) {}
+        // FIX7 — notify listeners (e.g. the vis-network graph) that the theme flipped.
+        try { window.dispatchEvent(new CustomEvent('xa-theme-change', { detail: { theme: next } })); } catch (e) {}
       });
     })();
 
@@ -1750,6 +2258,8 @@
             });
             document.getElementById('track-sent')?.classList.add('active', 'sent');
             document.getElementById('track-visited')?.classList.add('active');
+            // FIX5 — advance to Stage 2: Awaiting Reply
+            if (window.xaAdvanceStage) window.xaAdvanceStage(targetId, 2);
           } catch (e) {
             showToast('Couldn\'t save status — try again.', 'error');
           }
@@ -1886,6 +2396,24 @@
         form.addEventListener('submit', async (ev) => {
           ev.preventDefault();
           const targetId = form.dataset.composerFor;
+          const submitBtn = form.querySelector('.composer-send button[type=submit]');
+          const sendWrap = form.querySelector('.composer-send');
+          // Insert inline success slot once per form.
+          let successEl = form.querySelector('.composer-success');
+          if (!successEl) {
+            successEl = document.createElement('div');
+            successEl.className = 'composer-success';
+            sendWrap.insertAdjacentElement('afterend', successEl);
+          }
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.classList.add('loading');
+            submitBtn.dataset.origHTML = submitBtn.dataset.origHTML || submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="xa-send-spinner" aria-hidden="true"></span> Sending…';
+          }
+          successEl.textContent = '';
+          successEl.classList.remove('ok', 'err');
+
           const body = new URLSearchParams(new FormData(form));
           body.set('target_id', targetId);
           body.set('platform', 'in-system');
@@ -1893,7 +2421,9 @@
             const r = await fetch('/messages/send', { method: 'POST', body });
             const data = await r.json();
             if (!data || !data.ok) throw new Error('bad response');
-            showToast('Message queued! Login to activate sending.');
+            showToast('Message sent successfully!');
+            successEl.textContent = '✓ Sent successfully — added to pending queue.';
+            successEl.classList.add('ok');
             // Append the new item to every pending list for this target
             document
               .querySelectorAll('.pending-card[data-pending-for="' + targetId + '"] .pending-list')
@@ -1902,8 +2432,40 @@
                 if (empty) empty.remove();
                 list.insertBefore(renderPendingItem(data.message), list.firstChild);
               });
+            // FIX4/FIX5 — auto update outreach status + stage 1
+            try {
+              const statusBody = new URLSearchParams();
+              statusBody.set('target_id', targetId);
+              statusBody.set('message_sent', 'true');
+              statusBody.set('visited_profile', 'true');
+              await fetch('/outreach/status', { method: 'POST', body: statusBody });
+              const pill = document.getElementById('status-pill');
+              if (pill) {
+                pill.textContent = 'Message Sent';
+                pill.classList.remove('visited'); pill.classList.add('sent');
+              }
+              document.querySelectorAll('[data-target-badge="' + targetId + '"]').forEach((b) => {
+                b.textContent = 'Message Sent';
+                b.classList.remove('visited'); b.classList.add('sent');
+              });
+              document.getElementById('track-sent')?.classList.add('active', 'sent');
+              document.getElementById('track-visited')?.classList.add('active');
+              if (window.xaAdvanceStage) window.xaAdvanceStage(targetId, 1);
+            } catch (e) { /* non-fatal */ }
+            if (submitBtn) {
+              submitBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Sent';
+              submitBtn.classList.remove('loading');
+              submitBtn.classList.add('done');
+            }
           } catch (e) {
             showToast('Couldn\'t queue message.', 'error');
+            successEl.textContent = '✗ Failed to send — try again.';
+            successEl.classList.add('err');
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.classList.remove('loading');
+              submitBtn.innerHTML = submitBtn.dataset.origHTML || 'Send';
+            }
           }
         });
       });
@@ -2052,52 +2614,95 @@
         'moderate':    '#F59E0B',
         'weak':        '#94A3B8',
       };
-      const themeDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      const nodeBg      = themeDark ? '#22223F' : '#F8FAFC';
-      const nodeBorder  = themeDark ? '#3B3B5A' : '#CBD5E1';
-      const nodeText    = themeDark ? '#F5F5FA' : '#0F172A';
-      const accent      = '#4F46E5';
+      const accent = '#4F46E5';
 
-      const nodes = GRAPH_DATA.nodes.map((n) => ({
-        id: n.id,
-        label: n.label || n.id,
-        title: n.title || n.label || n.id,
-        // Scale size 12-30 based on degree (connection count)
-        size: Math.max(12, Math.min(30, 10 + (n.degree || 0) * 1.5)),
-        shape: n.is_me ? 'diamond' : 'dot',
-        color: {
-          background: n.is_me ? accent : (n.highlight ? '#14B8A6' : nodeBg),
-          border:     n.is_me ? accent : (n.highlight ? '#14B8A6' : nodeBorder),
-          highlight:  { background: accent, border: accent },
-        },
-        borderWidth: n.highlight || n.is_me ? 3 : 1,
-        font: { color: nodeText, size: 11, face: 'Inter, sans-serif' },
-      }));
+      function themePalette() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        return {
+          isDark,
+          nodeBg:     isDark ? '#22223F' : '#F8FAFC',
+          nodeBorder: isDark ? '#3B3B5A' : '#CBD5E1',
+          nodeText:   isDark ? '#F5F5FA' : '#0F172A',
+          edgeLabel:  isDark ? '#D1D5E3' : '#334155',
+          edgeLabelStroke: isDark ? '#0F0F0F' : '#FFFFFF',
+        };
+      }
 
-      const edges = GRAPH_DATA.edges.map((e) => ({
-        from: e.from,
-        to: e.to,
-        title: 'strength ' + e.strength,
-        color: {
-          color: bandColor[e.band] || nodeBorder,
-          highlight: bandColor[e.band] || accent,
-          opacity: e.highlight ? 1.0 : 0.55,
-        },
-        width: e.highlight ? 3 : 1.2,
-        smooth: { type: 'dynamic' },
-      }));
+      function buildDataSets(palette) {
+        const nodes = GRAPH_DATA.nodes.map((n) => ({
+          id: n.id,
+          label: n.label || n.id,
+          title: n.title || n.label || n.id,
+          // Scale size 12-30 based on degree (connection count)
+          size: Math.max(12, Math.min(30, 10 + (n.degree || 0) * 1.5)),
+          shape: n.is_me ? 'diamond' : 'dot',
+          color: {
+            background: n.is_me ? accent : (n.highlight ? '#14B8A6' : palette.nodeBg),
+            border:     n.is_me ? accent : (n.highlight ? '#14B8A6' : palette.nodeBorder),
+            highlight:  { background: accent, border: accent },
+          },
+          borderWidth: n.highlight || n.is_me ? 3 : 1,
+          font: { color: palette.nodeText, size: 11, face: 'Inter, sans-serif', strokeWidth: 0 },
+        }));
+        // Defensive dedup: collapse any (a,b) + (b,a) so only ONE line is drawn
+        // per connection. Keep the "highlighted" variant if either direction was.
+        const seen = new Map();
+        for (const e of GRAPH_DATA.edges) {
+          const key = e.from < e.to ? e.from + '|' + e.to : e.to + '|' + e.from;
+          const prev = seen.get(key);
+          if (!prev) { seen.set(key, { ...e }); continue; }
+          if (e.highlight) prev.highlight = true;
+          // Keep the strongest band if two entries collide.
+          if ((e.strength || 0) > (prev.strength || 0)) {
+            prev.strength = e.strength;
+            prev.band = e.band;
+          }
+        }
+        const edges = Array.from(seen.values()).map((e) => ({
+          from: e.from,
+          to: e.to,
+          title: 'strength ' + e.strength,
+          color: {
+            color: bandColor[e.band] || palette.nodeBorder,
+            highlight: bandColor[e.band] || accent,
+            opacity: e.highlight ? 1.0 : 0.38,
+          },
+          width: e.highlight ? 2.6 : 1,
+          // Straight lines — no curves, no "dynamic" smoothing that creates
+          // overlapping arcs. Each connection renders as a single clean edge.
+          smooth: false,
+          font: {
+            color: palette.edgeLabel,
+            strokeColor: palette.edgeLabelStroke,
+            strokeWidth: 2,
+            size: 10,
+            face: 'Inter, sans-serif',
+          },
+        }));
+        return { nodes, edges };
+      }
+
+      let palette = themePalette();
+      let { nodes, edges } = buildDataSets(palette);
+      const nodesSet = new vis.DataSet(nodes);
+      const edgesSet = new vis.DataSet(edges);
 
       const network = new vis.Network(
         container,
-        { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) },
+        { nodes: nodesSet, edges: edgesSet },
         {
           interaction: { hover: true, zoomView: true, dragView: true, tooltipDelay: 150 },
           physics: {
-            stabilization: { iterations: 250 },
-            barnesHut: { gravitationalConstant: -3000, springLength: 140, springConstant: 0.04 },
+            stabilization: { iterations: 300 },
+            barnesHut: { gravitationalConstant: -4500, springLength: 170, springConstant: 0.035, avoidOverlap: 0.2 },
           },
           nodes: { scaling: { min: 10, max: 40 } },
-          edges: { selectionWidth: 2 },
+          // Global edge defaults — single straight line per connection.
+          edges: {
+            selectionWidth: 2,
+            smooth: false,
+            arrows: { to: { enabled: false }, from: { enabled: false } },
+          },
         }
       );
 
@@ -2107,8 +2712,179 @@
         if (meNode) network.focus('me', { scale: 0.9, animation: true });
       });
 
+      // FIX7 — Re-color the graph when the theme toggles.
+      function applyThemeToGraph() {
+        palette = themePalette();
+        const rebuilt = buildDataSets(palette);
+        nodesSet.update(rebuilt.nodes);
+        edgesSet.update(rebuilt.edges);
+      }
+      window.addEventListener('xa-theme-change', applyThemeToGraph);
+      const themeObserver = new MutationObserver((muts) => {
+        for (const m of muts) {
+          if (m.attributeName === 'data-theme') {
+            applyThemeToGraph();
+            break;
+          }
+        }
+      });
+      themeObserver.observe(document.documentElement, { attributes: true });
+
       // Expose for debug
       window._network = network;
+      window._applyThemeToGraph = applyThemeToGraph;
+    })();
+  </script>
+
+  <!-- =============================================================
+       ADD-ON FEATURES (F1-F7) — client-side handlers.
+       ============================================================= -->
+  <script>
+    (function () {
+      // --- Toast reuse (falls back to alert if showToast is missing) ---
+      function xToast(msg, kind) {
+        if (typeof showToast === 'function') return showToast(msg, kind);
+        console.log(msg);
+      }
+
+      // --- F1 — Generate with AI ------------------------------------
+      document.querySelectorAll('[data-xa-ai-generate]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const ta = document.getElementById(btn.dataset.msgId);
+          if (!ta) return;
+          btn.classList.add('loading');
+          btn.disabled = true;
+          const body = new URLSearchParams();
+          body.set('target_id', btn.dataset.targetId || '');
+          body.set('mutual_id', btn.dataset.mutualId || '');
+          body.set('platform',  btn.dataset.platform || '');
+          body.set('style', 'warm');
+          try {
+            const r = await fetch('/ai/generate-intro', { method: 'POST', body });
+            const data = await r.json();
+            if (data && data.ok) {
+              ta.value = data.message;
+              ta.focus();
+              xToast('AI message generated. You can still edit before sending.');
+            } else {
+              xToast((data && data.error) || 'AI generation failed', 'error');
+            }
+          } catch (e) {
+            xToast('Network error: ' + e.message, 'error');
+          } finally {
+            btn.classList.remove('loading');
+            btn.disabled = false;
+          }
+        });
+      });
+
+      // --- F3 — stage pipeline (manual click + auto-advance) -------
+      function applyStageUI(container, stage) {
+        container.querySelectorAll('.xa-stage-step').forEach((s) => {
+          const v = parseInt(s.dataset.stage, 10);
+          s.classList.toggle('done',   v < stage);
+          s.classList.toggle('active', v === stage);
+        });
+        const label = container.querySelector('[data-xa-stage-label]');
+        if (label) {
+          const labels = {
+            0: 'Stages advance automatically as you send, open, and mark messages.',
+            1: 'Stage 1/4: Message Sent ✓',
+            2: 'Stage 2/4: Awaiting Reply ✓',
+            3: 'Stage 3/4: Meeting Scheduled ✓',
+            4: 'Stage 4/4: Goal Achieved 🎉',
+          };
+          label.textContent = labels[stage] || labels[0];
+        }
+      }
+      function updateOutreachStatsTiles(stats) {
+        if (!stats) return;
+        const t = document.getElementById('xa-stat-total');   if (t) t.textContent = stats.total_outreach;
+        const r = document.getElementById('xa-stat-reply');   if (r) r.textContent = stats.reply_rate + '%';
+        const m = document.getElementById('xa-stat-meeting'); if (m) m.textContent = stats.meeting_rate + '%';
+        const s = document.getElementById('xa-stat-success'); if (s) s.textContent = stats.success_rate + '%';
+      }
+
+      async function advanceStage(targetId, stage) {
+        if (!targetId) return;
+        const container = document.querySelector('[data-xa-pipeline="' + targetId + '"]');
+        if (!container) return;
+        const currentActive = container.querySelector('.xa-stage-step.active');
+        const currentStage = currentActive ? parseInt(currentActive.dataset.stage, 10) : 0;
+        // Monotonic: never regress automatically.
+        if (stage <= currentStage) return;
+        const body = new URLSearchParams();
+        body.set('target_id', targetId);
+        body.set('stage', String(stage));
+        try {
+          const r = await fetch('/outreach/stage', { method: 'POST', body });
+          const data = await r.json();
+          if (!data || !data.ok) return;
+          applyStageUI(container, data.stage);
+          updateOutreachStatsTiles(data.outreach_stats);
+        } catch (e) { /* network failure, silent */ }
+      }
+      window.xaAdvanceStage = advanceStage;
+
+      document.querySelectorAll('[data-xa-pipeline]').forEach((container) => {
+        const targetId = container.dataset.xaPipeline;
+        container.querySelectorAll('.xa-stage-step').forEach((step) => {
+          step.addEventListener('click', async () => {
+            const stage = parseInt(step.dataset.stage, 10);
+            const body = new URLSearchParams();
+            body.set('target_id', targetId);
+            body.set('stage', String(stage));
+            try {
+              const r = await fetch('/outreach/stage', { method: 'POST', body });
+              const data = await r.json();
+              if (!data || !data.ok) throw new Error(data && data.error || 'bad response');
+              applyStageUI(container, data.stage);
+              updateOutreachStatsTiles(data.outreach_stats);
+              xToast('Stage saved: ' + (data.stage_label || ''));
+            } catch (e) {
+              xToast('Couldn\'t save stage — ' + e.message, 'error');
+            }
+          });
+        });
+      });
+
+      // FIX5 — "Send Warm Intro Message" CTA auto-advances to Stage 1
+      document.querySelectorAll('[data-expand-platforms]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const card = btn.closest('.outreach-card');
+          const pipeline = card && card.querySelector('[data-xa-pipeline]');
+          const tid = pipeline && pipeline.dataset.xaPipeline;
+          if (tid) advanceStage(tid, 1);
+        });
+      });
+
+      // --- F7 — Compare Paths modal ---------------------------------
+      const openBtn  = document.getElementById('xa-open-compare');
+      const modal    = document.getElementById('xa-compare-modal');
+      const closeBtn = document.getElementById('xa-compare-close');
+      if (openBtn && modal) {
+        openBtn.addEventListener('click', () => modal.classList.add('open'));
+        if (closeBtn) closeBtn.addEventListener('click', () => modal.classList.remove('open'));
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) modal.classList.remove('open');
+        });
+      }
+      const selectBest = document.getElementById('xa-select-best');
+      if (selectBest) {
+        selectBest.addEventListener('click', () => {
+          const rank = selectBest.dataset.bestRank;
+          const selBtn = document.querySelector('[data-select-path="' + rank + '"]');
+          if (selBtn) selBtn.click();
+          document.querySelectorAll('.path-card').forEach((c) => c.classList.remove('xa-best-highlight'));
+          const card = document.querySelector('.path-card[data-path-id="' + rank + '"]');
+          if (card) {
+            card.classList.add('xa-best-highlight');
+            card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          if (modal) modal.classList.remove('open');
+          xToast('Path #' + rank + ' selected.');
+        });
+      }
     })();
   </script>
 </body>

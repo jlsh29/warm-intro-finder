@@ -41,6 +41,8 @@ from seed_profile_network import (
 )
 from warm_intro import build_graph, find_ranked_paths, yen_k_shortest_paths
 
+import extras
+
 PEOPLE = os.environ.get("WARM_INTRO_PEOPLE", "people.csv")
 EDGES = os.environ.get("WARM_INTRO_EDGES", "edges.csv")
 IDENTITIES = os.environ.get("WARM_INTRO_IDENTITIES", "identities.csv")
@@ -285,6 +287,11 @@ def node_view(node_id: str, *, degree_map: dict[str, int] | None = None) -> dict
     except (ValueError, TypeError):
         score = 0
     last = attrs.get("last_interaction", "")
+    # F6 — influence score (additive; legacy templates ignore).
+    try:
+        influence = extras.influence_score(node_id, graph, profile_id=PROFILE_ID)
+    except Exception:
+        influence = 0
     view = {
         "id": node_id,
         "name": graph.id_to_name.get(node_id, node_id),
@@ -295,6 +302,7 @@ def node_view(node_id: str, *, degree_map: dict[str, int] | None = None) -> dict
         "interactions": _interaction_summary(accs),
         "interaction_score": score,
         "last_interaction": last,
+        "influence": influence,
     }
     # JSON-safe payload pre-built for the interaction-details modal
     # (Jinja can't easily compose nested dict literals with loops).
@@ -514,11 +522,18 @@ def _status_for(target_id: str) -> dict:
     else:
         state = "none"
         label = "Not Started"
+    # F3 — also surface the 0-4 stage so the pipeline UI initializes.
+    stage = extras.stage_from_raw(raw)
     return {
         "visited_profile": visited,
         "message_sent": sent,
         "state": state,
         "label": label,
+        "stage": stage,
+        "stage_label": extras.STAGE_LABELS.get(stage, ""),
+        "reply_received": bool(raw.get("reply_received")),
+        "meeting_scheduled": bool(raw.get("meeting_scheduled")),
+        "goal_achieved": bool(raw.get("goal_achieved")),
     }
 
 
@@ -782,6 +797,33 @@ def _render(
     if result and result.get("paths"):
         highlight_ids = [n["id"] for n in result["paths"][0]["nodes"]]
     graph_data = _network_graph_data(highlight_ids)
+
+    # ----- additive context for the remaining add-on features ----------
+    outreach_store = load_outreach_status()
+    outreach_stats = extras.outreach_stats(outreach_store)
+
+    # Augment per-path result with risk + best-time (used by F4/F7).
+    if result and result.get("reachable") and result.get("paths"):
+        for p in result["paths"]:
+            hops = p.get("hop_strengths") or []
+            strengths = [int(h.get("strength") or 0) for h in hops]
+            if not strengths:
+                risk, risk_band = "Unknown", "unknown"
+            elif min(strengths) < 5:
+                risk, risk_band = "High", "high"
+            elif min(strengths) < 10:
+                risk, risk_band = "Medium", "medium"
+            else:
+                risk, risk_band = "Low", "low"
+            p["risk_level"]   = risk
+            p["risk_band"]    = risk_band
+            p["weakest_hop"]  = min(strengths) if strengths else 0
+            p["strongest_hop"] = max(strengths) if strengths else 0
+        result["best_time"] = extras.best_time(
+            result["target"]["id"], graph,
+            target_handle=result["target"].get("handle"),
+        )
+
     return render_template(
         "index.html",
         profile=_profile_view(),
@@ -794,6 +836,8 @@ def _render(
         result=result,
         error=error,
         not_found_query=not_found_query,
+        outreach_stats=outreach_stats,
+        ai_key_present=extras.anthropic_key_present(),
     )
 
 
@@ -1007,6 +1051,117 @@ def outreach_status():
     all_status[target_id] = cur
     save_outreach_status(all_status)
     return jsonify({"ok": True, "status": _status_for(target_id)})
+
+
+# =========================================================================
+# F1 / F3 / F5 / F8 routes — additive only (no existing route changed)
+# =========================================================================
+
+@app.route("/ai/generate-intro", methods=["POST"])
+def ai_generate_intro():
+    target_id = (request.form.get("target_id") or "").strip()
+    mutual_id = (request.form.get("mutual_id") or "").strip()
+    platform  = (request.form.get("platform")  or "").strip().lower()
+    style     = (request.form.get("style")     or "warm").strip()
+    if not target_id or target_id not in graph.id_to_name:
+        return jsonify({"ok": False, "error": "unknown target"}), 400
+    if not extras.anthropic_key_present():
+        return jsonify({
+            "ok": False,
+            "error": "Set ANTHROPIC_API_KEY to enable AI generation.",
+        }), 400
+
+    profile = load_profile() or {}
+    sender_name   = profile.get("name", "") or "You"
+    sender_handle = _profile_handle()
+
+    target_name   = graph.id_to_name.get(target_id, target_id)
+    target_handle = _preferred_handle(target_id)
+
+    mutual_name = mutual_handle = None
+    if mutual_id and mutual_id in graph.id_to_name and mutual_id != PROFILE_ID:
+        mutual_name = graph.id_to_name.get(mutual_id, mutual_id)
+        mutual_handle = _preferred_handle(mutual_id)
+
+    platform_label = PLATFORM_LABEL.get(platform, platform.title() or "direct")
+
+    # Summarise target's interaction volume for context.
+    accs = accounts_for(target_id)
+    chips = _interaction_summary(accs)
+    summary = ", ".join(
+        f"{c['count']} {c['label'].lower()}" for c in chips[:4]
+    ) or f"style:{style}"
+
+    try:
+        message = extras.generate_intro_message(
+            sender_name=sender_name,
+            sender_handle=sender_handle,
+            mutual_name=mutual_name,
+            mutual_handle=mutual_handle,
+            target_name=target_name,
+            target_handle=target_handle,
+            platform_label=platform_label,
+            interaction_summary=summary,
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 502
+    return jsonify({"ok": True, "message": message})
+
+
+@app.route("/outreach/stage", methods=["POST"])
+def outreach_stage():
+    """F3 — advance/reset a target's stage 0..4."""
+    target_id = (request.form.get("target_id") or "").strip()
+    try:
+        stage = int(request.form.get("stage") or "0")
+    except ValueError:
+        return jsonify({"ok": False, "error": "invalid stage"}), 400
+    if not target_id:
+        return jsonify({"ok": False, "error": "target_id required"}), 400
+    if target_id not in graph.id_to_name:
+        return jsonify({"ok": False, "error": "unknown target_id"}), 400
+    all_status = load_outreach_status()
+    all_status[target_id] = extras.apply_stage(all_status.get(target_id), stage)
+    save_outreach_status(all_status)
+    return jsonify({
+        "ok": True,
+        "stage": all_status[target_id]["stage"],
+        "stage_label": extras.STAGE_LABELS.get(all_status[target_id]["stage"], ""),
+        "status": _status_for(target_id),
+        "outreach_stats": extras.outreach_stats(all_status),
+    })
+
+
+@app.route("/report", methods=["GET"])
+def report_view():
+    """F8 — weekly network growth report."""
+    week_key = extras.iso_week_key()
+    cached = extras.load_cached_weekly_report(week_key)
+    if cached is None:
+        report = extras.build_weekly_report(
+            graph,
+            load_outreach_status(),
+            profile_id=PROFILE_ID,
+        )
+        extras.cache_weekly_report(report)
+    else:
+        report = cached
+    # Resolve handles for the rendered report.
+    id_to_handle = {pid: _preferred_handle(pid) for pid in graph.id_to_name}
+    for row in report.get("new_people", []):
+        row["handle"] = id_to_handle.get(row["id"], row.get("name", row["id"]))
+    for row in report.get("recommended", []):
+        row["handle"] = id_to_handle.get(row["id"], row.get("name", row["id"]))
+    for edge in report.get("strongest_new", []):
+        edge["a_handle"] = id_to_handle.get(edge["a_id"], edge.get("a_name", edge["a_id"]))
+        edge["b_handle"] = id_to_handle.get(edge["b_id"], edge.get("b_name", edge["b_id"]))
+    return render_template("report.html", report=report, profile=_profile_view())
+
+
+@app.route("/guide", methods=["GET"])
+def guide_view():
+    """FIX3 — beginner-friendly How-to-Use guide."""
+    return render_template("guide.html", profile=_profile_view())
 
 
 if __name__ == "__main__":

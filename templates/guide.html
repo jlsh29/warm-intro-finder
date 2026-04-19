@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to Use — Warm Intro Finder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('theme');
+        if (saved === 'light' || saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', saved);
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    :root, [data-theme="light"] {
+      --canvas: #F7F8FB; --surface: #FFFFFF; --surface-alt: #F8FAFC;
+      --ink: #0F172A; --ink-soft: #334155; --muted: #64748B;
+      --border: #E2E8F0; --accent: #4F46E5; --accent-soft: rgba(79,70,229,0.08);
+      --success: #10B981; --warn: #F59E0B; --error: #DC2626;
+    }
+    [data-theme="dark"] {
+      --canvas: #0F0F0F; --surface: #1A1A2E; --surface-alt: #15152A;
+      --ink: #F5F5FA; --ink-soft: #D1D5E3; --muted: #9BA3B5;
+      --border: #2A2A45; --accent: #818CF8; --accent-soft: rgba(129,140,248,0.12);
+      --success: #34D399; --warn: #FBBF24; --error: #F87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--canvas); color: var(--ink);
+      font-family: 'Inter', system-ui, sans-serif;
+      min-height: 100vh; line-height: 1.55;
+    }
+    nav.guide-nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1rem 1.5rem; background: var(--surface);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    }
+    nav.guide-nav h1 { margin: 0; font-size: 1.2rem; }
+    .btn {
+      background: var(--surface-alt); color: var(--ink-soft);
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.95rem; border-radius: 8px; font-weight: 600;
+      cursor: pointer; font-family: inherit; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem;
+    }
+    .btn:hover { color: var(--accent); border-color: var(--accent); }
+    main {
+      max-width: 860px; margin: 0 auto; padding: 1.5rem;
+    }
+    .intro {
+      background: linear-gradient(135deg, var(--accent-soft), transparent);
+      border: 1px solid var(--border); border-radius: 14px;
+      padding: 1.3rem 1.5rem; margin-bottom: 1.25rem;
+    }
+    .intro h2 { margin: 0 0 0.35rem; font-size: 1.35rem; }
+    .intro p { margin: 0; color: var(--ink-soft); }
+
+    .step {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1rem;
+      position: relative;
+    }
+    .step-num {
+      position: absolute; top: -12px; left: 1.1rem;
+      background: var(--accent); color: #fff;
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.82rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .step h3 { margin: 0.3rem 0 0.5rem; font-size: 1.05rem; }
+    .step p { margin: 0.4rem 0; color: var(--ink-soft); font-size: 0.92rem; }
+    .step ul { margin: 0.4rem 0 0; padding-left: 1.3rem; color: var(--ink-soft); font-size: 0.9rem; }
+    .step ul li { margin-bottom: 0.3rem; }
+    .example {
+      background: var(--surface-alt); border-left: 3px solid var(--accent);
+      padding: 0.55rem 0.85rem; margin: 0.6rem 0; border-radius: 0 8px 8px 0;
+      font-size: 0.86rem; color: var(--ink-soft);
+    }
+    .example strong { color: var(--ink); }
+
+    /* --- Tooltip trigger (feature name explanations) --- */
+    .g-tip {
+      position: relative; cursor: help; display: inline-block;
+      border-bottom: 1px dotted var(--muted); font-weight: 600;
+      color: var(--accent);
+    }
+    .g-tip .g-bubble {
+      position: absolute; bottom: calc(100% + 6px); left: 50%;
+      transform: translateX(-50%); width: 260px;
+      background: #0B0B16; color: #F5F5FA;
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.55rem 0.7rem; font-size: 0.75rem; line-height: 1.45;
+      font-weight: 400; opacity: 0; visibility: hidden;
+      transition: opacity .15s, transform .15s;
+      z-index: 30; text-align: left; pointer-events: none;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    }
+    .g-tip .g-bubble::after {
+      content: ""; position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent; border-top-color: #0B0B16;
+    }
+    .g-tip:hover .g-bubble, .g-tip:focus .g-bubble {
+      opacity: 1; visibility: visible; transform: translateX(-50%) translateY(-2px);
+    }
+
+    .feature-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.7rem;
+      margin-top: 0.8rem;
+    }
+    @media (max-width: 720px) { .feature-grid { grid-template-columns: 1fr; } }
+    .feature-card {
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.7rem 0.9rem;
+    }
+    .feature-card strong { color: var(--accent); display: block; margin-bottom: 0.15rem; font-size: 0.88rem; }
+    .feature-card span { color: var(--ink-soft); font-size: 0.82rem; }
+
+    .badge-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.4rem 0; }
+    .badge {
+      font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 6px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); font-weight: 600;
+    }
+    .badge.very-strong { background: rgba(16,185,129,0.15); color: #34D399; border-color: rgba(16,185,129,0.3); }
+    .badge.strong      { background: rgba(59,130,246,0.15); color: #60A5FA; border-color: rgba(59,130,246,0.3); }
+    .badge.moderate    { background: rgba(245,158,11,0.15); color: var(--warn); border-color: rgba(245,158,11,0.3); }
+    .badge.weak        { background: rgba(148,163,184,0.15); color: var(--muted); border-color: rgba(148,163,184,0.3); }
+  </style>
+</head>
+<body>
+  <nav class="guide-nav">
+    <h1>📘 How to Use Warm Intro Finder</h1>
+    <a href="/" class="btn">← Back to finder</a>
+  </nav>
+
+  <main>
+    <div class="intro">
+      <h2>What is Warm Intro Finder?</h2>
+      <p>Warm Intro Finder helps you discover the shortest, strongest route through your network to reach anyone — by chaining together mutual connections on Twitter, Farcaster, LinkedIn, and on-chain wallets. Instead of guessing who knows whom, it shows you the path, the strength of each hop, and drafts the outreach message for you.</p>
+      <p style="margin-top: 0.6rem;"><strong>Why use it?</strong> Cold messages get ignored. A warm intro — "hey, we both know X" — gets a reply 3-5× more often. This tool turns every social graph you already have into a pathfinding problem and hands you the answer.</p>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="step">
+      <div class="step-num">1</div>
+      <h3>Set up your profile</h3>
+      <p>Click <strong>Edit profile</strong> at the top of the home page and fill in your name + the handles you use on each platform: Twitter, Farcaster, LinkedIn, DeBank wallet. You don't need all four — the more you add, the more platforms the finder can search.</p>
+      <div class="example"><strong>Example:</strong> Name "Jen Lim", Twitter "@jenlim", LinkedIn "jen-lim", and a DeBank wallet. Save and the app generates a synthetic 3-degree network around you.</div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step">
+      <div class="step-num">2</div>
+      <h3>How the system builds your network</h3>
+      <p>On save, the app seeds your 1st, 2nd, and 3rd-degree contacts from the handles you provided. Each <span class="g-tip">connection<span class="g-bubble"><strong>Connection (edge)</strong>A typed relationship between two people — direct, mutual, shared-org, or platform similarity. Each has a strength score.</span></span> records the platforms both sides share and their interaction volume.</p>
+      <p>You can visualize it live on the <span class="g-tip">Network graph<span class="g-bubble"><strong>Network graph</strong>Interactive view of your full network. Your node is the diamond at the center; the highlighted path is the one the finder picked.</span></span> panel — the diamond is you, and edge color reflects strength.</p>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step">
+      <div class="step-num">3</div>
+      <h3>How to search for a target</h3>
+      <p>Type the person's name, handle, or wallet into <strong>Find target</strong>. Autocomplete shows every reachable person with their degree from you. Click the match, or type freely and press <strong>Find warm path</strong>.</p>
+      <div class="example"><strong>Example:</strong> Search "Sofia" or "@pascalokafor" or even part of a wallet. If Sofia is 2nd-degree, the finder will route through the strongest mutual.</div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="step">
+      <div class="step-num">4</div>
+      <h3>Understanding the 3 ranked paths</h3>
+      <p>The finder returns up to 3 paths ranked by a <span class="g-tip">composite score<span class="g-bubble"><strong>Composite score</strong>Weighted ranking: 40% fewer-hops, 35% more mutual platforms, 25% stronger edges. Higher = better path.</span></span>:</p>
+      <ul>
+        <li>🥇 <strong>Best Path</strong> — highest composite score overall</li>
+        <li>🥈 <strong>Good Path</strong> — second-best alternative</li>
+        <li>🥉 <strong>Possible Path</strong> — a backup if the first two don't work</li>
+      </ul>
+      <p>Each path shows every hop as a card with the person's handle, platforms, and interaction chips. The arrow between hops is colored by strength.</p>
+    </div>
+
+    <!-- Step 5 -->
+    <div class="step">
+      <div class="step-num">5</div>
+      <h3>How to read interaction scores and strength badges</h3>
+      <p>Each person has a <span class="g-tip">interaction score 0-15<span class="g-bubble"><strong>Interaction score</strong>Aggregated from likes, comments, reposts, recasts, endorsements, and on-chain txs. 0-15 scale, higher means more active with you.</span></span>. Each edge between two people has a strength bucket:</p>
+      <div class="badge-row">
+        <span class="badge very-strong">🔥 Very Strong 12-15</span>
+        <span class="badge strong">💪 Strong 8-11</span>
+        <span class="badge moderate">👋 Moderate 4-7</span>
+        <span class="badge weak">🤝 Weak 1-3</span>
+      </div>
+      <p>Every node also has an <span class="g-tip">Influence badge<span class="g-bubble"><strong>Influence (0-100)</strong>Composite of connections count, average interaction score, and platform coverage. Higher influence = bigger multiplier if they say yes to introducing you.</span></span> in the top-right showing how well-connected they are (0-100).</p>
+    </div>
+
+    <!-- Step 6 -->
+    <div class="step">
+      <div class="step-num">6</div>
+      <h3>How to use the outreach features</h3>
+      <p>Click <strong>Select this path</strong> on the path card you want, then expand the outreach section below. You get:</p>
+      <div class="feature-grid">
+        <div class="feature-card"><strong>⏰ Best Time to Reach Out</strong><span>Suggests the best day/time to message this person based on their interaction history.</span></div>
+        <div class="feature-card"><strong>📤 Send Warm Intro Message</strong><span>Expands a per-platform tab with a pre-drafted message referencing your mutual connection.</span></div>
+        <div class="feature-card"><strong>✨ Generate with AI</strong><span>Uses Claude to rewrite the message in a warmer, more personalized tone. Edit before sending.</span></div>
+        <div class="feature-card"><strong>💬 Send via Warm Intro Finder</strong><span>Queues an in-system message (for when social logins are activated).</span></div>
+        <div class="feature-card"><strong>📋 Copy</strong><span>Copies the message to clipboard so you can paste it into the platform yourself.</span></div>
+        <div class="feature-card"><strong>🔗 Open Platform</strong><span>Opens the target's profile / DM compose page on that platform.</span></div>
+      </div>
+      <div class="example" style="margin-top: 0.8rem;"><strong>Tip:</strong> Use <strong>🔀 Compare Paths</strong> (bottom of results) to see the 3 paths side-by-side with risk levels and backup platforms.</div>
+    </div>
+
+    <!-- Step 7 -->
+    <div class="step">
+      <div class="step-num">7</div>
+      <h3>How to track your outreach success</h3>
+      <p>The <span class="g-tip">Warm Intro Progress<span class="g-bubble"><strong>Warm Intro Progress</strong>A 4-stage pipeline that auto-advances as you use the outreach buttons. Persisted per target.</span></span> bar at the top of every outreach card has four stages:</p>
+      <ul>
+        <li><strong>1. Message Sent</strong> — triggers automatically when you click <em>Send Warm Intro Message</em> or submit the in-system composer</li>
+        <li><strong>2. Awaiting Reply</strong> — triggers automatically when you click <em>Mark as Sent</em> on a platform tab</li>
+        <li><strong>3. Meeting Scheduled</strong> — click this stage yourself once the reply turns into a meeting</li>
+        <li><strong>4. Goal Achieved</strong> — click when the intro delivers the outcome you wanted</li>
+      </ul>
+      <p>Your aggregate reply, meeting, and success rates show up in the <strong>Total Outreach</strong> tile-row right under the stats dashboard on the home page.</p>
+    </div>
+
+    <!-- Step 8 -->
+    <div class="step">
+      <div class="step-num">8</div>
+      <h3>How to read the weekly report</h3>
+      <p>Click <strong>📊 View Weekly Report</strong> in the navbar to open <code>/report</code>. Hover any metric label (the <strong>?</strong> icon) for an inline explanation. The report covers:</p>
+      <ul>
+        <li><strong>Outreach summary</strong> — reply / meeting / success rates this week</li>
+        <li><strong>Network activity</strong> — bar chart of interactions per day over the last 7 days</li>
+        <li><strong>New this week</strong> — fresh contacts to follow up on while the signal is warm</li>
+        <li><strong>Strongest new relationships</strong> — the highest-strength edges that touch this week's new contacts</li>
+        <li><strong>Top 3 to reach out to this week</strong> — un-contacted high-influence, high-score people</li>
+      </ul>
+      <div class="example"><strong>Export:</strong> Use your browser's Print dialog (or the 🖨 button) — the report has a print stylesheet, so "Save as PDF" gives you a clean one-page PDF.</div>
+    </div>
+
+    <div class="step" style="margin-top: 2rem; border-color: var(--accent);">
+      <h3 style="margin-top: 0;">You're ready</h3>
+      <p>Go back to the <a href="/" style="color: var(--accent); font-weight: 600;">home page</a> and try your first search. When in doubt, hover any <strong>?</strong> icon across the app for a plain-English explanation.</p>
+    </div>
+  </main>
+</body>
+</html>
