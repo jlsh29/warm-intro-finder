@@ -38,6 +38,16 @@ INTERACTION_COLUMNS = (
     "debank_transactions",
 )
 
+# Per-platform follower / connection counts — synthetic placeholders
+# until real platform APIs are wired in. Only populated when the person
+# has a handle on that platform.
+FOLLOWER_COLUMNS = (
+    "twitter_followers",
+    "farcaster_followers",
+    "linkedin_connections",
+    "debank_followers",
+)
+
 # Scoring bands from the spec, applied per column, summed, capped at 15.
 #   1-5 → +1    6-20 → +3    21-50 → +5    51+ → +7
 INTERACTION_SCORE_CAP = 15
@@ -82,6 +92,39 @@ def _random_interaction_counts(
         counts["linkedin_endorsements"]    = rng.choices([0, 2, 8, 22, 60], [0.6, 0.22, 0.12, 0.05, 0.01])[0]
     if ident.get("debank"):
         counts["debank_transactions"] = rng.choices([0, 1, 5, 15, 40, 80], [0.55, 0.22, 0.12, 0.07, 0.03, 0.01])[0]
+    return counts
+
+
+def _random_follower_counts(
+    ident: dict, rng: random.Random
+) -> dict[str, int]:
+    """Realistic synthetic follower / connection counts per platform.
+
+    Log-ish distribution — most people have a small following, a few
+    are notable, very few are network nodes. Zero when the person has
+    no handle on that platform.
+    """
+    counts = {c: 0 for c in FOLLOWER_COLUMNS}
+    if ident.get("twitter"):
+        counts["twitter_followers"] = rng.choices(
+            [45, 120, 340, 820, 2400, 6800, 18000],
+            [0.28, 0.25, 0.18, 0.14, 0.09, 0.04, 0.02],
+        )[0] + rng.randint(0, 100)
+    if ident.get("farcaster"):
+        counts["farcaster_followers"] = rng.choices(
+            [22, 75, 180, 450, 1200, 3100],
+            [0.32, 0.26, 0.2, 0.13, 0.07, 0.02],
+        )[0] + rng.randint(0, 60)
+    if ident.get("linkedin"):
+        counts["linkedin_connections"] = rng.choices(
+            [85, 210, 430, 780, 1400, 2600, 4100],
+            [0.22, 0.25, 0.22, 0.15, 0.1, 0.04, 0.02],
+        )[0] + rng.randint(0, 80)
+    if ident.get("debank"):
+        counts["debank_followers"] = rng.choices(
+            [8, 24, 65, 140, 320, 780, 1800],
+            [0.4, 0.22, 0.16, 0.1, 0.07, 0.03, 0.02],
+        )[0] + rng.randint(0, 25)
     return counts
 
 
@@ -334,12 +377,14 @@ def seed_for_profile(
     # Generated AFTER people+edges so we can use the interaction_score
     # to boost each edge's base strength (capped at 15).
     interactions_by_pid: dict[str, dict[str, int]] = {}
+    followers_by_pid: dict[str, dict[str, int]] = {}
     score_by_pid: dict[str, int] = {}
     last_by_pid: dict[str, str] = {}
     for ident in identities:
         pid = ident["person_id"]
         counts = _random_interaction_counts(ident, rng)
         interactions_by_pid[pid] = counts
+        followers_by_pid[pid] = _random_follower_counts(ident, rng)
         score_by_pid[pid] = interaction_score(counts)
         last_by_pid[pid] = _random_last_interaction(rng) if any(counts.values()) else ""
 
@@ -373,6 +418,7 @@ def seed_for_profile(
     identities_header = [
         "person_id", "twitter", "farcaster", "linkedin", "debank",
         *INTERACTION_COLUMNS,
+        *FOLLOWER_COLUMNS,
         "last_interaction", "interaction_score",
     ]
     with open(identities_csv, "w", newline="", encoding="utf-8") as f:
@@ -381,10 +427,12 @@ def seed_for_profile(
         for ident in identities:
             pid = ident["person_id"]
             counts = interactions_by_pid[pid]
+            followers = followers_by_pid[pid]
             w.writerow([
                 pid, ident["twitter"], ident["farcaster"],
                 ident["linkedin"], ident["debank"],
                 *(counts[c] for c in INTERACTION_COLUMNS),
+                *(followers[c] for c in FOLLOWER_COLUMNS),
                 last_by_pid[pid],
                 score_by_pid[pid],
             ])

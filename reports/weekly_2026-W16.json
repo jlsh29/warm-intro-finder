@@ -1,85 +1,128 @@
 {
   "iso_week": "2026-W16",
-  "generated_at": "2026-04-19T18:46:44",
+  "generated_at": "2026-04-19T21:09:46",
   "window_start": "2026-04-13",
   "window_end": "2026-04-19",
   "new_people": [
     {
-      "id": "p3_08_leon",
-      "name": "p3_08_leon",
-      "day": "2026-04-13",
-      "weekday": "Monday",
-      "interaction_score": 7
-    },
-    {
-      "id": "p1_11_dmitri",
-      "name": "p1_11_dmitri",
+      "id": "p3_18_xiu",
+      "name": "p3_18_xiu",
       "day": "2026-04-14",
       "weekday": "Tuesday",
       "interaction_score": 5
+    },
+    {
+      "id": "p2_22_willa",
+      "name": "p2_22_willa",
+      "day": "2026-04-15",
+      "weekday": "Wednesday",
+      "interaction_score": 4
+    },
+    {
+      "id": "p3_12_pascal",
+      "name": "p3_12_pascal",
+      "day": "2026-04-15",
+      "weekday": "Wednesday",
+      "interaction_score": 4
     }
   ],
   "strongest_new": [
     {
-      "a_id": "me",
-      "b_id": "p1_11_dmitri",
-      "a_name": "me",
-      "b_name": "p1_11_dmitri",
-      "strength": 15
+      "a_id": "p1_12_quinn",
+      "b_id": "p2_22_willa",
+      "a_name": "p1_12_quinn",
+      "b_name": "p2_22_willa",
+      "strength": 14
     },
     {
-      "a_id": "p1_11_dmitri",
-      "b_id": "p2_11_ben",
-      "a_name": "p1_11_dmitri",
-      "b_name": "p2_11_ben",
-      "strength": 15
+      "a_id": "p2_18_maya",
+      "b_id": "p3_12_pascal",
+      "a_name": "p2_18_maya",
+      "b_name": "p3_12_pascal",
+      "strength": 14
     },
     {
-      "a_id": "p1_11_dmitri",
-      "b_id": "p2_18_giulia",
-      "a_name": "p1_11_dmitri",
-      "b_name": "p2_18_giulia",
-      "strength": 15
+      "a_id": "p2_22_willa",
+      "b_id": "p3_16_rosa",
+      "a_name": "p2_22_willa",
+      "b_name": "p3_16_rosa",
+      "strength": 14
     }
   ],
   "recommended": [
     {
-      "id": "p2_11_ben",
-      "name": "p2_11_ben",
-      "influence": 88,
-      "interaction_score": 14,
-      "rank_value": 103.6
+      "id": "p1_06_dmitri",
+      "name": "p1_06_dmitri",
+      "interaction_score": 10,
+      "mutual_count": 2,
+      "rank_value": 70.6,
+      "followers": [
+        {
+          "platform": "twitter",
+          "emoji": "\ud83d\udc26",
+          "label": "Twitter",
+          "unit": "followers",
+          "count": 82,
+          "formatted": "82"
+        }
+      ],
+      "why": "Why recommended: steady activity, 2 mutual connections.",
+      "influence": 58
     },
     {
-      "id": "p2_25_ishaan",
-      "name": "p2_25_ishaan",
-      "influence": 75,
-      "interaction_score": 15,
-      "rank_value": 97.5
+      "id": "p1_10_hugo",
+      "name": "p1_10_hugo",
+      "interaction_score": 9,
+      "mutual_count": 2,
+      "rank_value": 62.699999999999996,
+      "followers": [
+        {
+          "platform": "twitter",
+          "emoji": "\ud83d\udc26",
+          "label": "Twitter",
+          "unit": "followers",
+          "count": 202,
+          "formatted": "202"
+        }
+      ],
+      "why": "Why recommended: steady activity, 2 mutual connections.",
+      "influence": 51
     },
     {
-      "id": "p1_05_pascal",
-      "name": "p1_05_pascal",
-      "influence": 78,
-      "interaction_score": 14,
-      "rank_value": 96.6
+      "id": "p2_01_gauri",
+      "name": "p2_01_gauri",
+      "interaction_score": 10,
+      "mutual_count": 1,
+      "rank_value": 59.4,
+      "followers": [
+        {
+          "platform": "twitter",
+          "emoji": "\ud83d\udc26",
+          "label": "Twitter",
+          "unit": "followers",
+          "count": 89,
+          "formatted": "89"
+        }
+      ],
+      "why": "Why recommended: steady activity, 1 mutual connection.",
+      "influence": 42
     }
   ],
   "growth": [
     {
       "day": "Mon 04-13",
-      "count": 1,
-      "percent": 100
+      "count": 0,
+      "percent": 0
     },
     {
       "day": "Tue 04-14",
       "count": 1,
-      "percent": 100
+      "percent": 50
     },
     {
       "day": "Wed 04-15",
-      "count": 0,
-      "percent": 0
+      "count": 2,
+      "percent": 100
     },
     {
       "day": "Thu 04-16",
@@ -103,14 +146,14 @@
     }
   ],
   "outreach_stats": {
-    "total_outreach": 3,
-    "reply_count": 2,
+    "total_outreach": 2,
+    "reply_count": 1,
     "meeting_count": 1,
-    "success_count": 0,
-    "reply_rate": 66.7,
-    "meeting_rate": 33.3,
-    "success_rate": 0.0
+    "success_count": 1,
+    "reply_rate": 50.0,
+    "meeting_rate": 50.0,
+    "success_rate": 50.0
   },
   "total_people": 56,
-  "total_edges": 122
+  "total_edges": 123
 }

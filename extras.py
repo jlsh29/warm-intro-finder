@@ -378,10 +378,75 @@ def iso_week_key(today: date | None = None) -> str:
     return f"{iso.year}-W{iso.week:02d}"
 
 
-def build_weekly_report(graph, outreach_status: dict, *, profile_id: str = "me",
-                        today: date | None = None) -> dict:
+FOLLOWER_FIELD_BY_PLATFORM = {
+    "twitter":   "twitter_followers",
+    "farcaster": "farcaster_followers",
+    "linkedin":  "linkedin_connections",
+    "wallet":    "debank_followers",
+}
+
+_PLATFORM_FOLLOWER_LABEL = {
+    "twitter":   ("🐦", "Twitter",   "followers"),
+    "farcaster": ("🟣", "Farcaster", "followers"),
+    "linkedin":  ("💼", "LinkedIn",  "connections"),
+    "wallet":    ("💚", "DeBank",    "followers"),
+}
+
+
+def read_followers_from_csv(identities_path: str = "identities.csv") -> dict[str, dict[str, int]]:
+    """Return {person_id: {twitter_followers: int, ...}}, reading only the
+    four *follower columns* from identities.csv (if present). Safe when
+    columns are missing — absent columns default to 0.
+    """
+    out: dict[str, dict[str, int]] = {}
+    if not os.path.exists(identities_path):
+        return out
+    try:
+        import csv as _csv
+        with open(identities_path, "r", encoding="utf-8", newline="") as f:
+            reader = _csv.DictReader(f)
+            cols = [c for c in (
+                "twitter_followers", "farcaster_followers",
+                "linkedin_connections", "debank_followers",
+            ) if c in (reader.fieldnames or [])]
+            if not cols:
+                return out
+            for row in reader:
+                pid = (row.get("person_id") or "").strip()
+                if not pid:
+                    continue
+                vals: dict[str, int] = {}
+                for c in cols:
+                    try:
+                        vals[c] = int((row.get(c) or "0").strip() or 0)
+                    except (ValueError, TypeError):
+                        vals[c] = 0
+                out[pid] = vals
+    except OSError:
+        pass
+    return out
+
+
+def _count_mutual_with_me(graph, pid: str, profile_id: str) -> int:
+    me_neighbors = graph.adjacency.get(profile_id, set())
+    person_neighbors = graph.adjacency.get(pid, set())
+    return len(me_neighbors & person_neighbors)
+
+
+def build_weekly_report(
+    graph,
+    outreach_status: dict,
+    *,
+    profile_id: str = "me",
+    today: date | None = None,
+    active_platforms: set[str] | None = None,
+    identities_path: str = "identities.csv",
+) -> dict:
     today = today or _today()
     cutoff = today - timedelta(days=7)
+    followers_by_pid = read_followers_from_csv(identities_path)
+    if active_platforms is None:
+        active_platforms = set()
 
     # --- new people this week (by last_interaction) ---
     new_people: list[dict] = []
@@ -431,12 +496,51 @@ def build_weekly_report(graph, outreach_status: dict, *, profile_id: str = "me",
         infl = influence_score(pid, graph, profile_id=profile_id,
                                max_connections_hint=max_conn)
         rank_value = infl * 0.7 + score * 3.0  # weight influence + score
+        mutual_count = _count_mutual_with_me(graph, pid, profile_id)
+        # Per-platform follower/connection counts, scoped to active platforms.
+        follower_entries: list[dict] = []
+        raw = followers_by_pid.get(pid, {}) or {}
+        for platform in ("twitter", "farcaster", "linkedin", "wallet"):
+            if active_platforms and platform not in active_platforms:
+                continue
+            field = FOLLOWER_FIELD_BY_PLATFORM[platform]
+            val = int(raw.get(field, 0) or 0)
+            if val <= 0:
+                continue
+            emoji, label, unit = _PLATFORM_FOLLOWER_LABEL[platform]
+            follower_entries.append({
+                "platform": platform,
+                "emoji":    emoji,
+                "label":    label,
+                "unit":     unit,
+                "count":    val,
+                "formatted": f"{val:,}",
+            })
+        # Plain-English "why recommended" sentence.
+        why_parts: list[str] = []
+        if score >= 11:
+            why_parts.append("very active")
+        elif score >= 6:
+            why_parts.append("steady activity")
+        else:
+            why_parts.append("low activity")
+        if mutual_count >= 3:
+            why_parts.append(f"{mutual_count} mutual connections with you")
+        elif mutual_count >= 1:
+            why_parts.append(f"{mutual_count} mutual connection{'s' if mutual_count > 1 else ''}")
+        else:
+            why_parts.append("no direct mutuals yet")
+        why = "Why recommended: " + ", ".join(why_parts) + "."
         recs.append({
             "id":        pid,
             "name":      name,
-            "influence": infl,
             "interaction_score": score,
+            "mutual_count": mutual_count,
             "rank_value": rank_value,
+            "followers": follower_entries,
+            "why": why,
+            # legacy — kept in case any consumer still reads it
+            "influence": infl,
         })
     recs.sort(key=lambda r: (-r["rank_value"], -r["interaction_score"]))
     recommended = recs[:3]

@@ -176,8 +176,8 @@
     main { max-width: 1120px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
     .page-heading { margin-bottom: 1.5rem; }
     .page-heading h1 {
-      font-size: 2rem; font-weight: 700; letter-spacing: -0.025em;
-      color: var(--ink); margin: 0 0 0.4rem;
+      font-size: 1.65rem; font-weight: 700; letter-spacing: -0.02em;
+      color: var(--ink); margin: 0 0 0.5rem; line-height: 1.2;
     }
     .page-heading p { margin: 0; color: var(--muted); font-size: 1rem; max-width: 56ch; }
 
@@ -211,12 +211,12 @@
     .profile-handles { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.3rem; }
     .profile-actions { display: flex; gap: 0.5rem; }
     .btn-ghost {
-      background: var(--surface); color: var(--ink-soft);
-      border: 1px solid var(--border-strong);
-      padding: 0.6rem 1.1rem; border-radius: 10px;
-      font-size: 0.88rem; font-weight: 600;
+      background: transparent; color: var(--ink-soft);
+      border: 1px solid var(--border);
+      padding: 0.55rem 1.1rem; border-radius: 10px;
+      font-size: 0.9rem; font-weight: 600; min-height: 44px;
       cursor: pointer; font-family: inherit; text-decoration: none;
-      display: inline-flex; align-items: center; gap: 0.4rem;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
       transition: all .15s;
     }
     .btn-ghost:hover { background: var(--surface-alt); border-color: var(--muted); color: var(--ink); }
@@ -291,10 +291,10 @@
     .degree-chip.dx { background: var(--surface-alt); color: var(--muted); }
 
     button[type=submit], .btn-primary {
-      background: var(--accent); color: #fff; border: 0;
-      padding: 0.75rem 1.4rem; font-size: 0.92rem; font-weight: 600;
-      border-radius: 10px; cursor: pointer;
-      display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+      background: var(--accent); color: #fff; border: 1px solid var(--accent);
+      padding: 0.55rem 1.1rem; font-size: 0.9rem; font-weight: 600;
+      border-radius: 10px; cursor: pointer; min-height: 44px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
       box-shadow: 0 4px 10px rgba(79, 70, 229, 0.25);
       transition: background .15s, transform .1s, box-shadow .15s;
       font-family: inherit; text-decoration: none; white-space: nowrap;

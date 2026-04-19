@@ -36,21 +36,50 @@
       font-family: 'Inter', system-ui, sans-serif;
       min-height: 100vh;
     }
+    /* Unified main-content headings (matches index.html + guide.html) */
+    main h1 { font-size: 1.65rem; font-weight: 700; color: var(--ink); margin: 0 0 0.5rem; letter-spacing: -0.02em; line-height: 1.2; }
+    main h2 { font-size: 1.15rem; font-weight: 700; color: var(--ink); margin: 0 0 0.8rem; letter-spacing: -0.01em; }
+    main h3 { font-size: 1rem;    font-weight: 600; color: var(--ink); margin: 0 0 0.5rem; }
+
     .report-nav {
       display: flex; justify-content: space-between; align-items: center;
       padding: 1rem 1.5rem; background: var(--surface);
       border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
     }
-    .report-nav h1 { margin: 0; font-size: 1.2rem; }
-    .report-actions { display: flex; gap: 0.5rem; }
+    .report-nav h1 { margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+    .report-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+    /* Unified button system (matches index.html + guide.html) */
     .btn {
-      background: var(--accent); color: #fff; border: none;
-      padding: 0.5rem 0.95rem; border-radius: 8px; font-weight: 600;
-      cursor: pointer; font-family: inherit; text-decoration: none;
-      display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      background: var(--accent); color: #fff; border: 1px solid var(--accent);
+      padding: 0.55rem 1.1rem; border-radius: 10px;
+      font-family: inherit; font-size: 0.9rem; font-weight: 600;
+      text-decoration: none; cursor: pointer;
+      min-height: 44px;
+      transition: filter .15s, transform .1s, background .15s;
     }
-    .btn.secondary { background: var(--surface-alt); color: var(--ink-soft); border: 1px solid var(--border); }
-    .btn:hover { filter: brightness(1.1); }
+    .btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .btn.secondary {
+      background: transparent; color: var(--ink-soft);
+      border: 1px solid var(--border);
+    }
+    .btn.secondary:hover { border-color: var(--accent); color: var(--accent); filter: none; }
+
+    /* Theme toggle — identical styling across pages */
+    .theme-toggle {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 40px; height: 40px; border-radius: 10px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+    .theme-toggle svg { width: 18px; height: 18px; }
+    .theme-toggle .sun { display: none; }
+    .theme-toggle .moon { display: inline; }
+    [data-theme="light"] .theme-toggle .sun { display: inline; }
+    [data-theme="light"] .theme-toggle .moon { display: none; }
     main {
       max-width: 960px; margin: 0 auto; padding: 1.5rem;
     }
@@ -96,6 +125,48 @@
     .r-bar-label { font-size: 0.7rem; color: var(--muted); }
     .r-bar-count { font-size: 0.8rem; font-weight: 700; }
     .handle-tag { color: var(--accent); font-weight: 600; }
+
+    /* Top 3 card (rank + followers + why) */
+    .top3-list { display: flex; flex-direction: column; gap: 0.65rem; }
+    .top3-card {
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.8rem 1rem;
+      display: flex; flex-direction: column; gap: 0.55rem;
+    }
+    .top3-head { display: flex; align-items: center; gap: 0.75rem; }
+    .top3-rank {
+      background: var(--accent); color: #fff;
+      font-weight: 700; font-size: 0.78rem;
+      padding: 0.25rem 0.55rem; border-radius: 999px;
+      min-width: 44px; text-align: center;
+    }
+    .top3-card:nth-child(1) .top3-rank { background: linear-gradient(135deg, #FFD54F, #FF9800); color: #3a2700; }
+    .top3-card:nth-child(2) .top3-rank { background: linear-gradient(135deg, #CFD8DC, #90A4AE); color: #263238; }
+    .top3-card:nth-child(3) .top3-rank { background: linear-gradient(135deg, #BF8970, #8D5A3F); color: #2b1810; }
+    .top3-id { display: flex; flex-direction: column; gap: 0.1rem; }
+    .top3-name { font-weight: 600; color: var(--ink); font-size: 0.92rem; }
+    .top3-handle { color: var(--accent); font-weight: 600; font-size: 0.8rem; }
+    .top3-followers { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .follower-badge {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.28rem 0.6rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; font-size: 0.78rem; color: var(--ink-soft);
+    }
+    .follower-badge .fb-emoji { font-size: 0.9rem; }
+    .follower-badge .fb-label { color: var(--muted); }
+    .follower-badge strong { color: var(--ink); font-weight: 700; }
+    .follower-badge .fb-unit { color: var(--muted); font-size: 0.72rem; }
+    .follower-badge.twitter   { border-color: rgba(29,155,240,0.35); }
+    .follower-badge.farcaster { border-color: rgba(139,92,246,0.35); }
+    .follower-badge.linkedin  { border-color: rgba(10,102,194,0.35); }
+    .follower-badge.wallet    { border-color: rgba(16,185,129,0.35); }
+    .top3-why {
+      padding: 0.45rem 0.6rem;
+      background: var(--accent-soft, rgba(79,70,229,0.08));
+      border-radius: 8px;
+      font-size: 0.78rem; color: var(--ink-soft); line-height: 1.45;
+    }
     .strength-tag {
       background: var(--accent-soft); color: var(--accent);
       padding: 0.12rem 0.45rem; border-radius: 6px;
@@ -158,8 +229,24 @@
     <div class="report-actions">
       <button type="button" class="btn secondary" onclick="window.print()">🖨 Print / Save as PDF</button>
       <a href="/" class="btn secondary">← Back to finder</a>
+      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </button>
     </div>
   </nav>
+  <script>
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var cur  = document.documentElement.getAttribute('data-theme') || 'dark';
+        var next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+      });
+    })();
+  </script>
 
   <main>
     <div class="meta">
@@ -347,26 +434,42 @@
         <span class="xa-tip-trigger" tabindex="0">🎯 Top 3 to reach out to this week<span class="xa-tip-icon">?</span>
           <span class="xa-tip-bubble">
             <strong>Recommended outreach</strong>
-            People you haven't contacted yet, ranked by a mix of influence
-            (network reach) and interaction score (how warm the signal is).
-            <em>Calculated: rank = 0.7 × influence + 3.0 × interaction_score, among un-contacted people.</em>
+            People you haven't contacted yet, ranked by follower count on
+            your active platforms, interaction score, and mutual connections.
+            <em>Only platforms you've set up appear here.</em>
           </span>
         </span>
       </h2>
       {% if report.recommended %}
-        <ul class="r-list">
+        {% set _ordinals = {0: '1st', 1: '2nd', 2: '3rd', 3: '4th'} %}
+        <div class="top3-list">
           {% for r in report.recommended %}
-            <li>
-              <div>
-                <strong>{{ r.name }}</strong>
-                <span class="handle-tag">{{ r.handle }}</span>
+            <div class="top3-card">
+              <div class="top3-head">
+                <span class="top3-rank">{{ _ordinals.get(loop.index0, loop.index|string + 'th') }}</span>
+                <div class="top3-id">
+                  <div class="top3-name">{{ r.name }}</div>
+                  <div class="top3-handle">{{ r.handle }}</div>
+                </div>
               </div>
-              <span class="strength-tag" title="Influence 0-100 = 40% connections + 35% interaction score + 25% platform coverage.">
-                Influence {{ r.influence }}/100 · Score {{ r.interaction_score }}/15
-              </span>
-            </li>
+              {% if r.followers %}
+                <div class="top3-followers">
+                  {% for f in r.followers %}
+                    <span class="follower-badge {{ f.platform }}">
+                      <span class="fb-emoji">{{ f.emoji }}</span>
+                      <span class="fb-label">{{ f.label }}:</span>
+                      <strong>{{ f.formatted }}</strong>
+                      <span class="fb-unit">{{ f.unit }}</span>
+                    </span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="top3-followers"><span class="r-muted">No follower data yet for your active platforms.</span></div>
+              {% endif %}
+              <div class="top3-why">{{ r.why }}</div>
+            </div>
           {% endfor %}
-        </ul>
+        </div>
       {% else %}
         <div class="empty">Nothing obvious to recommend — you've contacted most high-signal people.</div>
       {% endif %}

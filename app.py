@@ -1346,6 +1346,8 @@ def report_view():
             graph,
             load_outreach_status(),
             profile_id=PROFILE_ID,
+            active_platforms=_active_platforms(),
+            identities_path=IDENTITIES,
         )
         extras.cache_weekly_report(report)
     else:

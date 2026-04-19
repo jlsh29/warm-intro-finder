@@ -36,20 +36,50 @@
       font-family: 'Inter', system-ui, sans-serif;
       min-height: 100vh; line-height: 1.55;
     }
+    /* Unified main-content headings (matches index.html + report.html) */
+    main h1 { font-size: 1.65rem; font-weight: 700; color: var(--ink); margin: 0 0 0.5rem; letter-spacing: -0.02em; line-height: 1.2; }
+    main h2 { font-size: 1.15rem; font-weight: 700; color: var(--ink); margin: 0 0 0.8rem; letter-spacing: -0.01em; }
+    main h3 { font-size: 1rem;    font-weight: 600; color: var(--ink); margin: 0 0 0.5rem; }
+
     nav.guide-nav {
       display: flex; justify-content: space-between; align-items: center;
       padding: 1rem 1.5rem; background: var(--surface);
       border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
     }
-    nav.guide-nav h1 { margin: 0; font-size: 1.2rem; }
+    nav.guide-nav h1 { margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--ink); }
+    .guide-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+    /* Unified button system (matches index.html + report.html) */
     .btn {
-      background: var(--surface-alt); color: var(--ink-soft);
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      background: transparent; color: var(--ink-soft);
       border: 1px solid var(--border);
-      padding: 0.5rem 0.95rem; border-radius: 8px; font-weight: 600;
-      cursor: pointer; font-family: inherit; text-decoration: none;
-      display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.88rem;
+      padding: 0.55rem 1.1rem; border-radius: 10px;
+      font-family: inherit; font-size: 0.9rem; font-weight: 600;
+      text-decoration: none; cursor: pointer;
+      min-height: 44px;
+      transition: color .15s, border-color .15s, transform .1s, background .15s;
     }
-    .btn:hover { color: var(--accent); border-color: var(--accent); }
+    .btn:hover { color: var(--accent); border-color: var(--accent); transform: translateY(-1px); }
+    .btn.primary {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+    .btn.primary:hover { filter: brightness(1.08); color: #fff; }
+
+    /* Theme toggle — identical styling across pages */
+    .theme-toggle {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 40px; height: 40px; border-radius: 10px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+    .theme-toggle svg { width: 18px; height: 18px; }
+    .theme-toggle .sun { display: none; }
+    .theme-toggle .moon { display: inline; }
+    [data-theme="light"] .theme-toggle .sun { display: inline; }
+    [data-theme="light"] .theme-toggle .moon { display: none; }
     main {
       max-width: 860px; margin: 0 auto; padding: 1.5rem;
     }
@@ -138,8 +168,26 @@
 <body>
   <nav class="guide-nav">
     <h1>📘 How to Use Warm Intro Finder</h1>
-    <a href="/" class="btn">← Back to finder</a>
+    <div class="guide-actions">
+      <a href="/" class="btn">← Back to finder</a>
+      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </button>
+    </div>
   </nav>
+  <script>
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var cur  = document.documentElement.getAttribute('data-theme') || 'dark';
+        var next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+      });
+    })();
+  </script>
 
   <main>
     <div class="intro">
