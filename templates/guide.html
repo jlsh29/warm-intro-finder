@@ -36,20 +36,84 @@
       font-family: 'Inter', system-ui, sans-serif;
       min-height: 100vh; line-height: 1.55;
     }
-    /* Unified main-content headings (matches index.html + report.html) */
+    /* Unified main-content headings (matches index.html) */
     main h1 { font-size: 1.65rem; font-weight: 700; color: var(--ink); margin: 0 0 0.5rem; letter-spacing: -0.02em; line-height: 1.2; }
     main h2 { font-size: 1.15rem; font-weight: 700; color: var(--ink); margin: 0 0 0.8rem; letter-spacing: -0.01em; }
     main h3 { font-size: 1rem;    font-weight: 600; color: var(--ink); margin: 0 0 0.5rem; }
 
-    nav.guide-nav {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 1rem 1.5rem; background: var(--surface);
-      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    /* ---------- Navbar — identical to index.html ---------- */
+    :root, [data-theme="light"] {
+      --nav-bg: rgba(255, 255, 255, 0.72);
     }
-    nav.guide-nav h1 { margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--ink); }
-    .guide-actions { display: flex; gap: 0.5rem; align-items: center; }
+    [data-theme="dark"] {
+      --nav-bg: rgba(15, 15, 15, 0.72);
+      --border-strong: #3B3B5A;
+    }
+    .navbar {
+      background: var(--nav-bg);
+      backdrop-filter: saturate(1.4) blur(10px);
+      -webkit-backdrop-filter: saturate(1.4) blur(10px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .navbar-inner {
+      max-width: 1120px; margin: 0 auto;
+      padding: 0.9rem 1.5rem;
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    }
+    .brand { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+    .brand-mark {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #6366F1 0%, #14B8A6 100%);
+      display: grid; place-items: center; color: #fff;
+      box-shadow: 0 6px 14px rgba(99, 102, 241, 0.28); flex-shrink: 0;
+    }
+    .brand-text { display: flex; flex-direction: column; min-width: 0; }
+    .brand-name { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.015em; color: var(--ink); }
+    .brand-tag { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+    .nav-right { display: flex; align-items: center; gap: 0.7rem; }
+    .dataset-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.78rem; color: var(--ink-soft); background: var(--surface);
+      padding: 0.35rem 0.7rem; border-radius: 999px;
+      border: 1px solid var(--border); font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.12); white-space: nowrap;
+    }
+    .dataset-badge strong { color: var(--accent); font-weight: 600; }
+    .dataset-badge .dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--success);
+      box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
+    }
+    .xa-nav-link {
+      color: var(--ink-soft); text-decoration: none;
+      padding: 0.3rem 0.65rem; border-radius: 8px;
+      font-weight: 600; font-size: 0.82rem;
+      border: 1px solid var(--border); background: var(--surface-alt);
+    }
+    .xa-nav-link:hover { color: var(--accent); border-color: var(--accent); }
+    .theme-toggle {
+      display: inline-grid; place-items: center;
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      cursor: pointer; color: var(--ink-soft); font-family: inherit;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+      transition: color .15s, border-color .15s, transform .1s;
+    }
+    .theme-toggle:hover { color: var(--accent); border-color: var(--border-strong, var(--border)); }
+    .theme-toggle:active { transform: scale(0.96); }
+    .theme-toggle svg { width: 18px; height: 18px; }
+    [data-theme="dark"] .theme-toggle .sun { display: block; }
+    [data-theme="dark"] .theme-toggle .moon { display: none; }
+    [data-theme="light"] .theme-toggle .sun, :root:not([data-theme="dark"]) .theme-toggle .sun { display: none; }
+    [data-theme="light"] .theme-toggle .moon, :root:not([data-theme="dark"]) .theme-toggle .moon { display: block; }
 
-    /* Unified button system (matches index.html + report.html) */
+    @media (max-width: 720px) {
+      .navbar-inner { padding: 0.75rem 1rem; }
+      .brand-tag { display: none; }
+      .dataset-badge { padding: 0.3rem 0.55rem; font-size: 0.72rem; }
+    }
+
+    /* Back-to-finder link uses the same xa-nav-link pill style */
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
       background: transparent; color: var(--ink-soft);
@@ -61,25 +125,6 @@
       transition: color .15s, border-color .15s, transform .1s, background .15s;
     }
     .btn:hover { color: var(--accent); border-color: var(--accent); transform: translateY(-1px); }
-    .btn.primary {
-      background: var(--accent); color: #fff; border-color: var(--accent);
-    }
-    .btn.primary:hover { filter: brightness(1.08); color: #fff; }
-
-    /* Theme toggle — identical styling across pages */
-    .theme-toggle {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 40px; height: 40px; border-radius: 10px;
-      background: var(--surface-alt); border: 1px solid var(--border);
-      color: var(--ink-soft); cursor: pointer;
-      transition: border-color .15s, color .15s;
-    }
-    .theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
-    .theme-toggle svg { width: 18px; height: 18px; }
-    .theme-toggle .sun { display: none; }
-    .theme-toggle .moon { display: inline; }
-    [data-theme="light"] .theme-toggle .sun { display: inline; }
-    [data-theme="light"] .theme-toggle .moon { display: none; }
     main {
       max-width: 860px; margin: 0 auto; padding: 1.5rem;
     }
@@ -166,14 +211,30 @@
   </style>
 </head>
 <body>
-  <nav class="guide-nav">
-    <h1>📘 How to Use Warm Intro Finder</h1>
-    <div class="guide-actions">
-      <a href="/" class="btn">← Back to finder</a>
-      <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
-        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-      </button>
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">How to Use</span>
+          <span class="brand-tag">Find the shortest path to anyone in your network</span>
+        </div>
+      </div>
+      <div class="nav-right">
+        <div class="dataset-badge" title="{{ dataset.people }} / {{ dataset.edges }}">
+          <span class="dot" aria-hidden="true"></span>
+          <strong>{{ dataset.count }}</strong>&nbsp;people
+        </div>
+        <a href="/" class="xa-nav-link" title="Back to the home page">← Back</a>
+        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+      </div>
     </div>
   </nav>
   <script>
@@ -196,100 +257,147 @@
       <p style="margin-top: 0.6rem;"><strong>Why use it?</strong> Cold messages get ignored. A warm intro — "hey, we both know X" — gets a reply 3-5× more often. This tool turns every social graph you already have into a pathfinding problem and hands you the answer.</p>
     </div>
 
-    <!-- Step 1 -->
+    <!-- Step 1 — Set Up Your Profile -->
     <div class="step">
       <div class="step-num">1</div>
-      <h3>Set up your profile</h3>
-      <p>Click <strong>Edit profile</strong> at the top of the home page and fill in your name + the handles you use on each platform: Twitter, Farcaster, LinkedIn, DeBank wallet. You don't need all four — the more you add, the more platforms the finder can search.</p>
-      <div class="example"><strong>Example:</strong> Name "Jen Lim", Twitter "@jenlim", LinkedIn "jen-lim", and a DeBank wallet. Save and the app generates a synthetic 3-degree network around you.</div>
+      <h3>👤 Set up your profile</h3>
+      <p>On the home page, click <strong>Edit profile</strong> and fill in your name plus any handles you use: Twitter, Farcaster, LinkedIn, or DeBank wallet. You don't need all four — add whichever you're on.</p>
+      <ul>
+        <li><strong>Only platforms you enter are used.</strong> If you only add a Twitter handle, the whole system focuses on Twitter — no Farcaster/LinkedIn/DeBank rows appear anywhere.</li>
+        <li><strong>Different handles = different networks.</strong> The network is <span class="g-tip">seeded from your exact handle mix<span class="g-bubble"><strong>Handle-specific seed</strong>Each handle+platform combination produces a deterministic network via SHA-256. Saving the same profile always reproduces the same people; swapping a handle gives you a brand-new network.</span></span>. Switching handle creates a totally different 56-person network.</li>
+        <li><strong>Clearing your profile clears all network data.</strong> Save with every handle blank and the CSVs are wiped — no stale connections linger.</li>
+      </ul>
+      <div class="example"><strong>Example:</strong> Save with Twitter <code>@jenlim</code> only → network only shows Twitter interactions. Add LinkedIn <code>jen-lim</code> and save again → both Twitter and LinkedIn activity appear.</div>
     </div>
 
-    <!-- Step 2 -->
+    <!-- Step 2 — Understanding Your Network -->
     <div class="step">
       <div class="step-num">2</div>
-      <h3>How the system builds your network</h3>
-      <p>On save, the app seeds your 1st, 2nd, and 3rd-degree contacts from the handles you provided. Each <span class="g-tip">connection<span class="g-bubble"><strong>Connection (edge)</strong>A typed relationship between two people — direct, mutual, shared-org, or platform similarity. Each has a strength score.</span></span> records the platforms both sides share and their interaction volume.</p>
-      <p>You can visualize it live on the <span class="g-tip">Network graph<span class="g-bubble"><strong>Network graph</strong>Interactive view of your full network. Your node is the diamond at the center; the highlighted path is the one the finder picked.</span></span> panel — the diamond is you, and edge color reflects strength.</p>
+      <h3>📊 Understanding your network</h3>
+      <p>Right under the profile card you'll see six <span class="g-tip">stat tiles<span class="g-bubble"><strong>Stats dashboard</strong>A live snapshot of your network — recomputed whenever you save your profile.</span></span>:</p>
+      <ul>
+        <li><strong>People</strong> — total unique people discovered across all degrees.</li>
+        <li><strong>Connections</strong> — total relationships (edges) between those people.</li>
+        <li><strong>Strong</strong> — connections with strength score <strong>10 or above</strong>.</li>
+        <li><strong>Moderate</strong> — connections with strength <strong>5–9</strong>.</li>
+        <li><strong>Platforms</strong> — number of platforms represented in the network.</li>
+        <li><strong>Avg Strength</strong> — the average strength across every connection.</li>
+      </ul>
+      <p>Below the stats is the <span class="g-tip">network graph<span class="g-bubble"><strong>Network graph</strong>Vis-network visualization of your full 3-degree graph. Drag nodes, scroll to zoom, click Hide to collapse.</span></span> — an interactive view you can drag, zoom, and hide. Edge colors match the strength bucket:</p>
+      <div class="badge-row">
+        <span class="badge very-strong">🟢 Green — Very Strong</span>
+        <span class="badge strong">🔵 Blue — Strong</span>
+        <span class="badge moderate">🟡 Yellow — Moderate</span>
+        <span class="badge weak">⚪ Grey — Weak</span>
+      </div>
+      <p style="margin-top: 0.5rem;">A <strong>diamond</strong> shape marks <em>you</em>; every other person in your network is a <strong>circle</strong> sized by how many connections they have.</p>
     </div>
 
-    <!-- Step 3 -->
+    <!-- Step 3 — Finding a Target Person -->
     <div class="step">
       <div class="step-num">3</div>
-      <h3>How to search for a target</h3>
-      <p>Type the person's name, handle, or wallet into <strong>Find target</strong>. Autocomplete shows every reachable person with their degree from you. Click the match, or type freely and press <strong>Find warm path</strong>.</p>
-      <div class="example"><strong>Example:</strong> Search "Sofia" or "@pascalokafor" or even part of a wallet. If Sofia is 2nd-degree, the finder will route through the strongest mutual.</div>
+      <h3>🔍 Finding a target person</h3>
+      <p>Type into the <strong>Find target</strong> box. The finder matches against <strong>name, handle (with or without <code>@</code>), or wallet address</strong> — partial matches work.</p>
+      <p>The search covers <strong>every degree</strong> of your network (1st, 2nd, 3rd). Autocomplete suggestions include a chip showing that person's degree from you.</p>
+      <div class="example"><strong>Example:</strong> type <code>sofia</code>, <code>@pascal</code>, or <code>0xabc</code> — pick the autocomplete match, then press <strong>Find warm path</strong>.</div>
     </div>
 
-    <!-- Step 4 -->
+    <!-- Step 4 — Understanding the 3 Ranked Paths -->
     <div class="step">
       <div class="step-num">4</div>
-      <h3>Understanding the 3 ranked paths</h3>
-      <p>The finder returns up to 3 paths ranked by a <span class="g-tip">composite score<span class="g-bubble"><strong>Composite score</strong>Weighted ranking: 40% fewer-hops, 35% more mutual platforms, 25% stronger edges. Higher = better path.</span></span>:</p>
+      <h3>🏆 Understanding the 3 ranked paths</h3>
+      <p>The finder returns up to three routes, ranked by how easily you can reach the target:</p>
       <ul>
-        <li>🥇 <strong>Best Path</strong> — highest composite score overall</li>
-        <li>🥈 <strong>Good Path</strong> — second-best alternative</li>
-        <li>🥉 <strong>Possible Path</strong> — a backup if the first two don't work</li>
+        <li>🥇 <strong>Best Path</strong> — recommended; fewest hops and strongest mutuals.</li>
+        <li>🥈 <strong>Good Path</strong> — second-best alternative.</li>
+        <li>🥉 <strong>Possible Path</strong> — a fallback if the first two don't work.</li>
       </ul>
-      <p>Each path shows every hop as a card with the person's handle, platforms, and interaction chips. The arrow between hops is colored by strength.</p>
+      <p><strong>Hops</strong> means the number of people in the chain between you and the target — fewer hops = easier intro. Each hop has a colored arrow whose color matches the strength of that specific connection.</p>
+      <p>Click <strong>Select this path</strong> on any card to expand its outreach section. Or click <strong>🔀 Compare Paths</strong> at the bottom to open a side-by-side view with these metrics:</p>
+      <div class="feature-grid">
+        <div class="feature-card"><strong>👣 Steps to reach target</strong><span>Number of hops — fewer is easier.</span></div>
+        <div class="feature-card"><strong>💪 Connection Strength</strong><span>Visual bar (Weak / Moderate / Strong / Very Strong) summing all hop strengths.</span></div>
+        <div class="feature-card"><strong>🎯 Success Likelihood</strong><span>High (green) / Medium (yellow) / Low (red), based on the weakest hop.</span></div>
+        <div class="feature-card"><strong>📬 Best Platform</strong><span>The one platform most likely to deliver this intro.</span></div>
+        <div class="feature-card"><strong>💬 Interaction Quality</strong><span>🔥 High / 💪 Moderate / 👋 Low activity averaged across people in the path.</span></div>
+        <div class="feature-card"><strong>⭐ Why this path</strong><span>A 1-2 sentence plain-English explanation per path.</span></div>
+      </div>
+      <p>Use <strong>✓ Select Best Path</strong> inside the modal to jump straight to the recommended one.</p>
     </div>
 
-    <!-- Step 5 -->
+    <!-- Step 5 — Understanding Interaction Scores -->
     <div class="step">
       <div class="step-num">5</div>
-      <h3>How to read interaction scores and strength badges</h3>
-      <p>Each person has a <span class="g-tip">interaction score 0-15<span class="g-bubble"><strong>Interaction score</strong>Aggregated from likes, comments, reposts, recasts, endorsements, and on-chain txs. 0-15 scale, higher means more active with you.</span></span>. Each edge between two people has a strength bucket:</p>
+      <h3>📈 Understanding interaction scores</h3>
+      <p>Each person has an <span class="g-tip">interaction score (0–15)<span class="g-bubble"><strong>Interaction score</strong>0-15 scale — sums per-platform counts and caps at 15. Higher means more direct engagement between you and that person.</span></span> aggregated from concrete signals on every platform they're on:</p>
+      <ul>
+        <li>👍 <strong>Likes</strong> — Twitter likes.</li>
+        <li>💬 <strong>Comments / Replies</strong> — Twitter comments, Farcaster replies.</li>
+        <li>🔁 <strong>Reposts / 🔄 Recasts</strong> — Twitter reposts and Farcaster recasts.</li>
+        <li>⭐ <strong>Recommendations</strong> and 🏆 <strong>Endorsements</strong> — LinkedIn.</li>
+        <li>💸 <strong>Transactions</strong> — on-chain interactions tracked via DeBank.</li>
+      </ul>
+      <p>Each connection (edge) between two people is bucketed by strength:</p>
       <div class="badge-row">
-        <span class="badge very-strong">🔥 Very Strong 12-15</span>
-        <span class="badge strong">💪 Strong 8-11</span>
-        <span class="badge moderate">👋 Moderate 4-7</span>
-        <span class="badge weak">🤝 Weak 1-3</span>
+        <span class="badge very-strong">🔥 Very Strong 12–15</span>
+        <span class="badge strong">💪 Strong 8–11</span>
+        <span class="badge moderate">👋 Moderate 4–7</span>
+        <span class="badge weak">🤝 Weak 1–3</span>
       </div>
-      <p>Every node also has an <span class="g-tip">Influence badge<span class="g-bubble"><strong>Influence (0-100)</strong>Composite of connections count, average interaction score, and platform coverage. Higher influence = bigger multiplier if they say yes to introducing you.</span></span> in the top-right showing how well-connected they are (0-100).</p>
+      <p style="margin-top: 0.5rem;">Under every path you'll see a <strong>mutual-platform panel</strong>: a green <strong>✔</strong> means both people are on that platform, a grey <strong>✖</strong> means one of them isn't. Only the platforms in your profile appear.</p>
     </div>
 
-    <!-- Step 6 -->
+    <!-- Step 6 — Using the Outreach Features -->
     <div class="step">
       <div class="step-num">6</div>
-      <h3>How to use the outreach features</h3>
-      <p>Click <strong>Select this path</strong> on the path card you want, then expand the outreach section below. You get:</p>
+      <h3>📬 Using the outreach features</h3>
+      <p>After clicking <strong>Select this path</strong>, the outreach panel opens. Everything there is scoped to platforms <em>you</em> are on — if your profile only has Twitter, you only see Twitter options.</p>
       <div class="feature-grid">
-        <div class="feature-card"><strong>⏰ Best Time to Reach Out</strong><span>Suggests the best day/time to message this person based on their interaction history.</span></div>
-        <div class="feature-card"><strong>📤 Send Warm Intro Message</strong><span>Expands a per-platform tab with a pre-drafted message referencing your mutual connection.</span></div>
-        <div class="feature-card"><strong>✨ Generate with AI</strong><span>Uses Claude to rewrite the message in a warmer, more personalized tone. Edit before sending.</span></div>
-        <div class="feature-card"><strong>💬 Send via Warm Intro Finder</strong><span>Queues an in-system message (for when social logins are activated).</span></div>
-        <div class="feature-card"><strong>📋 Copy</strong><span>Copies the message to clipboard so you can paste it into the platform yourself.</span></div>
-        <div class="feature-card"><strong>🔗 Open Platform</strong><span>Opens the target's profile / DM compose page on that platform.</span></div>
+        <div class="feature-card"><strong>📤 Send Warm Intro Message</strong><span>The master CTA. Expands a tab for each platform the target is on.</span></div>
+        <div class="feature-card"><strong>🔗 Open Platform</strong><span>Opens the target's DM / profile page on Twitter, Farcaster, LinkedIn, or DeBank.</span></div>
+        <div class="feature-card"><strong>📋 Copy</strong><span>One-click copy the drafted message to your clipboard.</span></div>
+        <div class="feature-card"><strong>✓ Mark as Sent</strong><span>Confirms you actually sent on that platform — records the outreach and advances your stage tracker.</span></div>
+        <div class="feature-card"><strong>💬 Send via Warm Intro Finder</strong><span>The in-system composer. Queues a message (visible in Pending Messages).</span></div>
+        <div class="feature-card"><strong>✨ Generate with AI</strong><span>Uses Claude to rewrite the composer message in a warmer, more personalized tone. You can still edit before sending.</span></div>
       </div>
-      <div class="example" style="margin-top: 0.8rem;"><strong>Tip:</strong> Use <strong>🔀 Compare Paths</strong> (bottom of results) to see the 3 paths side-by-side with risk levels and backup platforms.</div>
     </div>
 
-    <!-- Step 7 -->
+    <!-- Step 7 — Tracking Your Outreach -->
     <div class="step">
       <div class="step-num">7</div>
-      <h3>How to track your outreach success</h3>
-      <p>The <span class="g-tip">Warm Intro Progress<span class="g-bubble"><strong>Warm Intro Progress</strong>A 4-stage pipeline that auto-advances as you use the outreach buttons. Persisted per target.</span></span> bar at the top of every outreach card has four stages:</p>
+      <h3>🎯 Tracking your outreach</h3>
+      <p>Two indicators update automatically at the top of every results page:</p>
       <ul>
-        <li><strong>1. Message Sent</strong> — triggers automatically when you click <em>Send Warm Intro Message</em> or submit the in-system composer</li>
-        <li><strong>2. Awaiting Reply</strong> — triggers automatically when you click <em>Mark as Sent</em> on a platform tab</li>
-        <li><strong>3. Meeting Scheduled</strong> — click this stage yourself once the reply turns into a meeting</li>
-        <li><strong>4. Goal Achieved</strong> — click when the intro delivers the outcome you wanted</li>
+        <li><strong>Profile Visited</strong> — auto-ticks when you click any <em>Open Platform</em> link.</li>
+        <li><strong>Message Sent</strong> — auto-ticks when you click <em>Mark as Sent</em> or submit the in-system composer.</li>
       </ul>
-      <p>Your aggregate reply, meeting, and success rates show up in the <strong>Total Outreach</strong> tile-row right under the stats dashboard on the home page.</p>
+      <p>Each outreach card also has a <strong>Warm Intro Progress</strong> bar that advances through four stages:</p>
+      <ul>
+        <li><strong>Stage 1: Message Sent</strong> — fires when you click <em>Send Warm Intro Message</em> or submit the composer.</li>
+        <li><strong>Stage 2: Awaiting Reply</strong> — fires when you click <em>Mark as Sent</em>.</li>
+        <li><strong>Stage 3: Meeting Scheduled</strong> — click this stage yourself once the reply turns into a meeting.</li>
+        <li><strong>Stage 4: Goal Achieved</strong> — click when the intro delivers the outcome you wanted.</li>
+      </ul>
+      <p>Your <strong>Total Outreach</strong>, <strong>Reply Rate</strong>, <strong>Meeting Rate</strong>, and <strong>Success Rate</strong> tiles (right under the stats dashboard on the home page) roll up live. These stats are <span class="g-tip">scoped per handle<span class="g-bubble"><strong>Per-handle stats</strong>Switching your profile to a different handle loads that handle's own history. Stats never mix between handles.</span></span> — switching profile handle shows that handle's own history.</p>
     </div>
 
-    <!-- Step 8 -->
+    <!-- Step 8 — Best Time to Reach Out -->
     <div class="step">
       <div class="step-num">8</div>
-      <h3>How to read the weekly report</h3>
-      <p>Click <strong>📊 View Weekly Report</strong> in the navbar to open <code>/report</code>. Hover any metric label (the <strong>?</strong> icon) for an inline explanation. The report covers:</p>
+      <h3>⏰ Best Time to Reach Out</h3>
+      <p>Every outreach card starts with a <strong>Best Time</strong> banner — a quick recommendation for when to actually send the message.</p>
       <ul>
-        <li><strong>Outreach summary</strong> — reply / meeting / success rates this week</li>
-        <li><strong>Network activity</strong> — bar chart of interactions per day over the last 7 days</li>
-        <li><strong>New this week</strong> — fresh contacts to follow up on while the signal is warm</li>
-        <li><strong>Strongest new relationships</strong> — the highest-strength edges that touch this week's new contacts</li>
-        <li><strong>Top 3 to reach out to this week</strong> — un-contacted high-influence, high-score people</li>
+        <li><strong>Headline window</strong> — e.g. <em>"Best time: Weekdays 9am–11am"</em>.</li>
+        <li><strong>Reason sentence</strong> — e.g. <em>"Based on 22 interactions, @kira is most active on Twitter during morning hours on weekdays."</em></li>
+        <li><strong>Per-platform mini-cards</strong> — one card per platform the target is on, each with its own recommended window and short reason.</li>
       </ul>
-      <div class="example"><strong>Export:</strong> Use your browser's Print dialog (or the 🖨 button) — the report has a print stylesheet, so "Save as PDF" gives you a clean one-page PDF.</div>
+      <p>The suggestion is derived from:</p>
+      <ul>
+        <li>the target's <strong>most-active platform</strong> (which one has the highest interaction count),</li>
+        <li>whether their <strong>last recorded interaction</strong> fell on a weekday or weekend,</li>
+        <li>and typical activity windows for that platform (LinkedIn → business hours, Twitter/Farcaster → mornings and evenings, DeBank → evenings).</li>
+      </ul>
+      <div class="example"><strong>If there's no data yet:</strong> you'll see a generic fallback — <em>"Generally, weekday mornings (9-11am) and evenings (7-9pm) have the highest response rates on social media."</em></div>
     </div>
 
     <div class="step" style="margin-top: 2rem; border-color: var(--accent);">

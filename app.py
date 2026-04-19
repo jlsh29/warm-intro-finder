@@ -1336,38 +1336,14 @@ def outreach_stage():
     })
 
 
-@app.route("/report", methods=["GET"])
-def report_view():
-    """F8 — weekly network growth report."""
-    week_key = extras.iso_week_key()
-    cached = extras.load_cached_weekly_report(week_key)
-    if cached is None:
-        report = extras.build_weekly_report(
-            graph,
-            load_outreach_status(),
-            profile_id=PROFILE_ID,
-            active_platforms=_active_platforms(),
-            identities_path=IDENTITIES,
-        )
-        extras.cache_weekly_report(report)
-    else:
-        report = cached
-    # Resolve handles for the rendered report.
-    id_to_handle = {pid: _preferred_handle(pid) for pid in graph.id_to_name}
-    for row in report.get("new_people", []):
-        row["handle"] = id_to_handle.get(row["id"], row.get("name", row["id"]))
-    for row in report.get("recommended", []):
-        row["handle"] = id_to_handle.get(row["id"], row.get("name", row["id"]))
-    for edge in report.get("strongest_new", []):
-        edge["a_handle"] = id_to_handle.get(edge["a_id"], edge.get("a_name", edge["a_id"]))
-        edge["b_handle"] = id_to_handle.get(edge["b_id"], edge.get("b_name", edge["b_id"]))
-    return render_template("report.html", report=report, profile=_profile_view())
-
-
 @app.route("/guide", methods=["GET"])
 def guide_view():
     """FIX3 — beginner-friendly How-to-Use guide."""
-    return render_template("guide.html", profile=_profile_view())
+    return render_template(
+        "guide.html",
+        profile=_profile_view(),
+        dataset=_dataset_view(),
+    )
 
 
 if __name__ == "__main__":
