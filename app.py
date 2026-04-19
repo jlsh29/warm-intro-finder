@@ -32,11 +32,42 @@ from collections import deque
 from datetime import datetime, timezone
 from urllib.parse import quote
 
+
+def _load_env_file(path: str = ".env") -> None:
+    """Minimal stdlib .env loader so `ANTHROPIC_API_KEY` (and friends)
+    flow into `os.environ` without requiring python-dotenv. Existing env
+    vars take precedence — we never overwrite values already set by the
+    shell.
+    """
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                key = key.strip()
+                val = val.strip()
+                # Strip surrounding single/double quotes if present.
+                if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+                    val = val[1:-1]
+                if key and key not in os.environ:
+                    os.environ[key] = val
+    except OSError:
+        pass
+
+
+_load_env_file()
+
+
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from seed_profile_network import (
     PROFILE_ID,
     default_profile,
+    handle_key,
     seed_for_profile,
 )
 from warm_intro import build_graph, find_ranked_paths, yen_k_shortest_paths
@@ -127,7 +158,54 @@ def save_profile(profile: dict) -> None:
         json.dump(profile, f, indent=2)
 
 
+def _profile_has_handles(profile: dict | None) -> bool:
+    """True iff the profile owns at least one social handle."""
+    p = profile or {}
+    return any((p.get(k) or "").strip()
+               for k in ("twitter", "farcaster", "linkedin", "debank"))
+
+
+_PROFILE_TO_PLATFORM = {
+    "twitter":   "twitter",
+    "farcaster": "farcaster",
+    "linkedin":  "linkedin",
+    "debank":    "wallet",
+}
+
+
+def _active_platforms() -> set[str]:
+    """Platforms the current profile owns — used to scope every per-platform
+    UI surface (interaction chips, mutual panel, best-time grid, outreach
+    tabs) to the entry person's actual platforms."""
+    prof = load_profile() or {}
+    out: set[str] = set()
+    for field, platform in _PROFILE_TO_PLATFORM.items():
+        if (prof.get(field) or "").strip():
+            out.add(platform)
+    return out
+
+
+def _clear_dataset() -> None:
+    """Write header-only CSVs so build_graph() yields an empty graph.
+
+    Used when the user saves a profile with no social handles — the prior
+    seeded dataset is replaced with nothing to represent the empty state.
+    Headers match what `core.CSVRepository` expects.
+    """
+    with open(PEOPLE, "w", encoding="utf-8", newline="") as f:
+        f.write("id,name\n")
+    with open(EDGES, "w", encoding="utf-8", newline="") as f:
+        f.write("from,to,tier,strength,source\n")
+    with open(IDENTITIES, "w", encoding="utf-8", newline="") as f:
+        f.write("person_id,twitter,farcaster,linkedin,debank\n")
+
+
 def _ensure_dataset(profile: dict) -> None:
+    # Empty profile → never seed. Leave whatever is on disk alone; any
+    # explicit profile-save event (or the fall-through default profile at
+    # first run) is what populates the dataset.
+    if not _profile_has_handles(profile):
+        return
     if not (
         os.path.exists(PEOPLE)
         and os.path.exists(EDGES)
@@ -189,8 +267,12 @@ def compose_url_for(platform: str, handle: str) -> str | None:
 
 def accounts_for(node_id: str) -> list[dict]:
     out: list[dict] = []
+    active = _active_platforms()
     for acc in graph.accounts:
         if acc.owner_person_id != node_id:
+            continue
+        # BUG2 — only surface platforms the entry person (profile) has.
+        if acc.platform not in active:
             continue
         url = link_for(acc.platform, acc.handle)
         if not url:
@@ -356,12 +438,11 @@ def degree_label(d: int | None) -> str:
 # ---- mutual-platform status per hop ----------------------------------
 
 def mutual_status(a_id: str, b_id: str) -> list[dict]:
-    """For each of the four platforms, report whether both endpoints have
-    a handle on that platform. The synthetic dataset gives every
-    non-profile person all four platforms, so the profile's platform
-    coverage is the thing that shapes this panel in practice."""
+    """Mutual-platform status between two nodes, scoped to the entry
+    person's platforms only (BUG2)."""
     a = _platforms_of(a_id)
     b = _platforms_of(b_id)
+    active = _active_platforms()
     return [
         {
             "platform": p,
@@ -370,7 +451,7 @@ def mutual_status(a_id: str, b_id: str) -> list[dict]:
             "b_has": p in b,
             "mutual": (p in a) and (p in b),
         }
-        for p in PLATFORMS
+        for p in PLATFORMS if p in active
     ]
 
 
@@ -387,9 +468,12 @@ def _discovery_platform(mutual_id: str, target_id: str) -> tuple[str | None, str
     mutual connection @X on {discovery_platform}." Picks a stable order
     so the same path always yields the same phrasing.
     """
+    active = _active_platforms()
     shared = [
         p for p in PLATFORMS
-        if p in _platforms_of(mutual_id) and p in _platforms_of(target_id)
+        if p in active
+        and p in _platforms_of(mutual_id)
+        and p in _platforms_of(target_id)
     ]
     if not shared:
         return None, ""
@@ -445,40 +529,93 @@ def _build_direct_outreach(nodes: list[dict], target_node: dict) -> list[dict]:
     return out
 
 
-# ---- outreach status persistence ----------------------------------------
+# ---- handle-scoped persistence -------------------------------------------
+#
+# Both files namespace their contents under the current profile's handle
+# key so distinct handles never share outreach state. Legacy flat files
+# (pre-handle-scoping) are migrated lazily under the current handle on
+# first read so nobody loses history.
 
-def load_outreach_status() -> dict:
+def _current_handle_key() -> str:
+    return handle_key(load_profile() or {})
+
+
+def _load_all_outreach_raw() -> dict:
     if not os.path.exists(OUTREACH_STATUS_PATH):
         return {}
     try:
         with open(OUTREACH_STATUS_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return data if isinstance(data, dict) else {}
     except (json.JSONDecodeError, OSError):
         return {}
+    if not isinstance(data, dict):
+        return {}
+    # New-schema entries have top-level keys containing ':' (platform:handle).
+    # Old-schema files are flat person_id → status dicts; migrate them under
+    # the current handle so the user's tracked history is preserved.
+    if data and not any(":" in k for k in data.keys()):
+        current = _current_handle_key()
+        return {current: data} if current else {}
+    return data
+
+
+def load_outreach_status() -> dict:
+    """Return the current handle's outreach map. Empty when no handle set."""
+    current = _current_handle_key()
+    if not current:
+        return {}
+    return _load_all_outreach_raw().get(current, {}) or {}
 
 
 def save_outreach_status(all_status: dict) -> None:
+    """Persist outreach map for the CURRENT handle.
+
+    Other handles' data is preserved in place — this file is a multi-handle
+    store, so other profiles' history isn't touched on save.
+    """
+    current = _current_handle_key()
+    all_data = _load_all_outreach_raw()
+    if current:
+        all_data[current] = all_status
     with open(OUTREACH_STATUS_PATH, "w", encoding="utf-8") as f:
-        json.dump(all_status, f, indent=2)
+        json.dump(all_data, f, indent=2)
 
 
-# ---- pending in-system messages ----------------------------------------
+# ---- pending in-system messages (handle-scoped) -------------------------
 
-def load_pending_messages() -> list[dict]:
+def _load_all_pending_raw() -> dict:
     if not os.path.exists(PENDING_MESSAGES_PATH):
-        return []
+        return {}
     try:
         with open(PENDING_MESSAGES_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return data if isinstance(data, list) else []
     except (json.JSONDecodeError, OSError):
+        return {}
+    # Legacy flat list → wrap under current handle.
+    if isinstance(data, list):
+        current = _current_handle_key()
+        return {current: data} if current else {}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def load_pending_messages() -> list[dict]:
+    current = _current_handle_key()
+    if not current:
         return []
+    all_data = _load_all_pending_raw()
+    lst = all_data.get(current, [])
+    return lst if isinstance(lst, list) else []
 
 
 def save_pending_messages(messages: list[dict]) -> None:
+    current = _current_handle_key()
+    all_data = _load_all_pending_raw()
+    if current:
+        all_data[current] = messages
     with open(PENDING_MESSAGES_PATH, "w", encoding="utf-8") as f:
-        json.dump(messages, f, indent=2)
+        json.dump(all_data, f, indent=2)
 
 
 def _pending_for_target(target_id: str) -> list[dict]:
@@ -673,6 +810,7 @@ def _profile_view() -> dict:
         "debank": prof.get("debank", ""),
         "accounts": accounts,
         "configured": configured,
+        "has_social_handles": _profile_has_handles(prof),
     }
 
 
@@ -802,31 +940,88 @@ def _render(
     outreach_store = load_outreach_status()
     outreach_stats = extras.outreach_stats(outreach_store)
 
-    # Augment per-path result with risk + best-time (used by F4/F7).
+    # Augment per-path result with derived metrics consumed by the
+    # Path Comparison modal.
     if result and result.get("reachable") and result.get("paths"):
-        for p in result["paths"]:
+        for idx, p in enumerate(result["paths"]):
             hops = p.get("hop_strengths") or []
             strengths = [int(h.get("strength") or 0) for h in hops]
+            # --- Success Likelihood (inverse of risk) ---
             if not strengths:
-                risk, risk_band = "Unknown", "unknown"
-            elif min(strengths) < 5:
-                risk, risk_band = "High", "high"
-            elif min(strengths) < 10:
-                risk, risk_band = "Medium", "medium"
+                likelihood, lband = "Unknown", "unknown"
+            elif min(strengths) >= 10:
+                likelihood, lband = "High", "high"
+            elif min(strengths) >= 5:
+                likelihood, lband = "Medium", "medium"
             else:
-                risk, risk_band = "Low", "low"
-            p["risk_level"]   = risk
-            p["risk_band"]    = risk_band
-            p["weakest_hop"]  = min(strengths) if strengths else 0
-            p["strongest_hop"] = max(strengths) if strengths else 0
+                likelihood, lband = "Low", "low"
+            p["success_likelihood"] = likelihood
+            p["success_likelihood_band"] = lband
+
+            # --- Connection Strength bar (scale total_strength → 0..50) ---
+            total = float(p.get("total_strength") or 0)
+            pct = int(round(min(total / 50.0, 1.0) * 100))
+            if total >= 37:   cs_band, cs_label = "very-strong", "Very Strong"
+            elif total >= 25: cs_band, cs_label = "strong",      "Strong"
+            elif total >= 13: cs_band, cs_label = "moderate",    "Moderate"
+            else:             cs_band, cs_label = "weak",        "Weak"
+            p["connection_strength_pct"]   = pct
+            p["connection_strength_band"]  = cs_band
+            p["connection_strength_label"] = cs_label
+
+            # --- Interaction Quality (avg interaction_score over non-me nodes) ---
+            nodes = p.get("nodes") or []
+            interaction_scores = [
+                int(n.get("interaction_score") or 0)
+                for n in nodes if n.get("id") != PROFILE_ID
+            ]
+            avg_i = (sum(interaction_scores) / len(interaction_scores)) if interaction_scores else 0.0
+            if avg_i >= 11:  iq_emoji, iq_label, iq_band = "🔥", "High Activity",     "high"
+            elif avg_i >= 6: iq_emoji, iq_label, iq_band = "💪", "Moderate Activity", "moderate"
+            else:            iq_emoji, iq_label, iq_band = "👋", "Low Activity",      "low"
+            p["interaction_avg"]   = round(avg_i, 1)
+            p["interaction_emoji"] = iq_emoji
+            p["interaction_label"] = iq_label
+            p["interaction_band"]  = iq_band
+
+            # --- Why this path is recommended ---
+            mutual = nodes[-2] if len(nodes) >= 3 else None
+            target_node = nodes[-1] if nodes else None
+            platform_label = (p.get("direct_outreach") or [{}])[0].get("platform_label", "")
+            if idx == 0:
+                if mutual and platform_label:
+                    reason = (
+                        f"This is the most direct route with the strongest "
+                        f"interactions. {mutual['handle']} actively engages "
+                        f"with both you and {target_node['handle']} on {platform_label}."
+                    )
+                elif mutual:
+                    reason = (
+                        f"This is the most direct route. {mutual['handle']} "
+                        f"is your strongest mutual to {target_node['handle']}."
+                    )
+                else:
+                    reason = "Direct reach — no intermediaries needed."
+            else:
+                best = result["paths"][0]
+                if p["hops"] > best["hops"]:
+                    reason = "This path has more steps but similar connection strength."
+                elif p.get("total_strength", 0) > best.get("total_strength", 0):
+                    reason = "Slightly longer, but the connections are a touch warmer."
+                else:
+                    reason = "A solid backup option if the best path doesn't work."
+            p["why_recommended"] = reason
+
         result["best_time"] = extras.best_time(
             result["target"]["id"], graph,
             target_handle=result["target"].get("handle"),
+            active_platforms=_active_platforms(),
         )
 
+    profile_view = _profile_view()
     return render_template(
         "index.html",
-        profile=_profile_view(),
+        profile=profile_view,
         search_index=index,
         search_index_json=json.dumps(index),
         dataset=_dataset_view(),
@@ -838,6 +1033,7 @@ def _render(
         not_found_query=not_found_query,
         outreach_stats=outreach_stats,
         ai_key_present=extras.anthropic_key_present(),
+        empty_state=not profile_view["has_social_handles"],
     )
 
 
@@ -858,13 +1054,21 @@ def update_profile():
         "debank":    (request.form.get("debank")    or "").strip(),
     }
     save_profile(prof)
-    seed_for_profile(prof)
+    # Profile-change semantics: ALWAYS wipe the existing dataset first so
+    # no stale rows from a previous platform mix linger. Then either
+    # regenerate fresh (if handles exist) or stay empty.
+    _clear_dataset()
+    if _profile_has_handles(prof):
+        seed_for_profile(prof)
     rebuild_graph()
     return redirect(url_for("index"))
 
 
 @app.route("/search", methods=["POST"])
 def search():
+    # BUG1 — refuse search when profile has no handles.
+    if not _profile_has_handles(load_profile()):
+        return _render()
     query = (request.form.get("target") or "").strip()
     if not query:
         return _render(error="Type a target person by name, handle, or wallet.")

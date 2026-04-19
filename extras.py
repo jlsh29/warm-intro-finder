@@ -209,7 +209,13 @@ _PLATFORM_DISPLAY = {
 }
 
 
-def best_time(target_id: str, graph, *, target_handle: str | None = None) -> dict:
+def best_time(
+    target_id: str,
+    graph,
+    *,
+    target_handle: str | None = None,
+    active_platforms: set[str] | None = None,
+) -> dict:
     """Heuristic best-time-to-reach-out with human-readable reasoning.
 
     Returns a dict consumed by the template:
@@ -224,6 +230,9 @@ def best_time(target_id: str, graph, *, target_handle: str | None = None) -> dic
       }
     """
     accounts = [a for a in graph.accounts if a.owner_person_id == target_id]
+    # BUG2 — scope everything to the entry person's platforms, if supplied.
+    if active_platforms is not None:
+        accounts = [a for a in accounts if a.platform in active_platforms]
     meta = graph.id_to_meta.get(target_id, {}) or {}
     last = _parse_date(meta.get("last_interaction"))
     handle = (target_handle or "").strip() or graph.id_to_name.get(target_id, target_id)

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import os
 import random
@@ -123,23 +124,81 @@ def _rand_wallet(rng: random.Random) -> str:
     return "0x" + "".join(rng.choice("0123456789abcdef") for _ in range(40))
 
 
-def _build_identity(pid: str, name: str, rng: random.Random) -> dict:
-    """Every synthetic person gets all four platforms so the path finder
-    can find inter-person edges regardless of which platform we roll for
-    a given edge. This maximizes demo-friendly connectivity."""
+def _build_identity(
+    pid: str,
+    name: str,
+    rng: random.Random,
+    allowed: set[str] | None = None,
+) -> dict:
+    """Synthetic person identity row.
+
+    When `allowed` is given, only those platform fields are populated;
+    the rest stay empty. This ties the generated network to exactly the
+    platforms the user has in their profile — removing a handle removes
+    every trace of that platform from the fresh network.
+    """
     base = name.lower().replace(" ", "")
     suffix = _rand_suffix(rng)
-    return {
+    ident = {
         "person_id": pid,
-        "twitter": f"@{base}{suffix}",
-        "farcaster": f"{base}{suffix}",
-        "linkedin": name.lower().replace(" ", "-"),
-        "debank": _rand_wallet(rng),
+        "twitter": "",
+        "farcaster": "",
+        "linkedin": "",
+        "debank": "",
     }
+    platforms = allowed if allowed is not None else {"twitter", "farcaster", "linkedin", "debank"}
+    if "twitter" in platforms:
+        ident["twitter"] = f"@{base}{suffix}"
+    if "farcaster" in platforms:
+        ident["farcaster"] = f"{base}{suffix}"
+    if "linkedin" in platforms:
+        ident["linkedin"] = name.lower().replace(" ", "-")
+    if "debank" in platforms:
+        ident["debank"] = _rand_wallet(rng)
+    return ident
 
 
 def _platforms_with_handle(ident: dict) -> list[str]:
     return [p for p in ("twitter", "farcaster", "linkedin", "debank") if ident.get(p)]
+
+
+_PROFILE_FIELDS = (
+    ("twitter",   "twitter"),
+    ("farcaster", "farcaster"),
+    ("linkedin",  "linkedin"),
+    ("debank",    "wallet"),
+)
+
+
+def handle_key(profile: dict) -> str:
+    """Canonical identifier for a profile's platform+handle mix.
+
+    Two distinct handles on the same platform (e.g. @jel vs @alice), or
+    the same handle on two different platforms, produce different keys.
+    Trailing whitespace and case are normalized so cosmetic differences
+    don't fork the network.
+    """
+    parts: list[str] = []
+    for field, platform in _PROFILE_FIELDS:
+        h = (profile.get(field) or "").strip().lower()
+        if h:
+            parts.append(f"{platform}:{h}")
+    return "|".join(sorted(parts))
+
+
+def seed_from_profile(profile: dict) -> int:
+    """Deterministic 64-bit integer seed tied to the exact handle mix.
+
+    Same handles → same seed → same synthetic network.
+    Different handles or platforms → different seed → different network.
+    """
+    key = handle_key(profile)
+    if not key:
+        # Empty profile won't actually seed a dataset (caller clears
+        # instead), but return a stable value just in case.
+        return 42
+    digest = hashlib.sha256(key.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big")
 
 
 def seed_for_profile(
@@ -149,9 +208,23 @@ def seed_for_profile(
     first_degree: int = 12,
     second_degree: int = 25,
     third_degree: int = 18,
-    seed: int = 42,
+    seed: int | None = None,
+    allowed_platforms: set[str] | None = None,
 ) -> dict:
-    """Generate and write the synthetic network. Returns output paths + counts."""
+    """Generate and write the synthetic network. Returns output paths + counts.
+
+    When `allowed_platforms` is omitted, it's derived from the profile:
+    only platforms for which the user provided a handle get populated
+    on the synthetic people. This guarantees removing a handle from the
+    profile produces a network with no trace of that platform.
+
+    When `seed` is omitted, it's derived deterministically from the
+    profile's handle+platform mix via `seed_from_profile(profile)` — so
+    each unique handle+platform combination produces a unique network,
+    while saving the same profile twice reproduces the same network.
+    """
+    if seed is None:
+        seed = seed_from_profile(profile)
     rng = random.Random(seed)
     os.makedirs(out_dir, exist_ok=True)
 
@@ -163,6 +236,11 @@ def seed_for_profile(
         "linkedin": (profile.get("linkedin") or "").strip(),
         "debank": (profile.get("debank") or "").strip(),
     }
+    if allowed_platforms is None:
+        allowed_platforms = {
+            p for p in ("twitter", "farcaster", "linkedin", "debank")
+            if me_identity.get(p)
+        }
     identities: list[dict] = [me_identity]
     people_ids: list[str] = [PROFILE_ID]
 
@@ -184,7 +262,7 @@ def seed_for_profile(
             pid = f"{degree_prefix}_{i+1:02d}_{first}"
             ids.append(pid)
             people_ids.append(pid)
-            identities.append(_build_identity(pid, name, rng))
+            identities.append(_build_identity(pid, name, rng, allowed_platforms))
         return ids
 
     first = alloc("p1", first_degree)
