@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Outreach Tracker — Warm Intro Finder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('theme');
+        if (saved === 'light' || saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', saved);
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    :root, [data-theme="light"] {
+      --canvas: #F7F8FB; --surface: #FFFFFF; --surface-alt: #F8FAFC;
+      --ink: #0F172A; --ink-soft: #334155; --muted: #64748B;
+      --border: #E2E8F0; --accent: #4F46E5; --accent-soft: rgba(79,70,229,0.08);
+      --success: #10B981; --warn: #F59E0B; --error: #DC2626;
+      --nav-bg: rgba(255, 255, 255, 0.72);
+    }
+    [data-theme="dark"] {
+      --canvas: #0F0F0F; --surface: #1A1A2E; --surface-alt: #15152A;
+      --ink: #F5F5FA; --ink-soft: #D1D5E3; --muted: #9BA3B5;
+      --border: #2A2A45; --accent: #818CF8; --accent-soft: rgba(129,140,248,0.12);
+      --success: #34D399; --warn: #FBBF24; --error: #F87171;
+      --nav-bg: rgba(15, 15, 15, 0.72);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--canvas); color: var(--ink);
+      font-family: 'Inter', system-ui, sans-serif;
+      min-height: 100vh; line-height: 1.55;
+    }
+    main h1 { font-size: 1.65rem; font-weight: 700; margin: 0 0 0.5rem; letter-spacing: -0.02em; line-height: 1.2; }
+    main h2 { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.8rem; letter-spacing: -0.01em; }
+    main h3 { font-size: 1rem;    font-weight: 600; margin: 0 0 0.5rem; }
+
+    .navbar {
+      background: var(--nav-bg); backdrop-filter: saturate(1.4) blur(10px);
+      -webkit-backdrop-filter: saturate(1.4) blur(10px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .navbar-inner {
+      max-width: 1200px; margin: 0 auto;
+      padding: 0.9rem 1.5rem;
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    }
+    .brand { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+    .brand-mark {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #6366F1 0%, #14B8A6 100%);
+      display: grid; place-items: center; color: #fff;
+      box-shadow: 0 6px 14px rgba(99, 102, 241, 0.28); flex-shrink: 0;
+    }
+    .brand-text { display: flex; flex-direction: column; min-width: 0; }
+    .brand-name { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.015em; color: var(--ink); }
+    .brand-tag { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+    .nav-right { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+    .dataset-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.78rem; color: var(--ink-soft); background: var(--surface);
+      padding: 0.35rem 0.7rem; border-radius: 999px;
+      border: 1px solid var(--border); font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.12); white-space: nowrap;
+    }
+    .dataset-badge .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--success);
+      box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
+    }
+    .xa-nav-link {
+      color: var(--ink-soft); text-decoration: none;
+      padding: 0.3rem 0.65rem; border-radius: 8px;
+      font-weight: 500; font-size: 0.85rem;
+      border: 1px solid var(--border); background: var(--surface-alt);
+    }
+    .xa-nav-link:hover { color: var(--accent); border-color: var(--accent); }
+    .theme-toggle {
+      display: inline-grid; place-items: center;
+      width: 34px; height: 34px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer; color: var(--ink-soft);
+    }
+    .theme-toggle svg { width: 18px; height: 18px; }
+    [data-theme="light"] .theme-toggle .moon { display: none; }
+    [data-theme="light"] .theme-toggle .sun  { display: block; }
+    [data-theme="dark"]  .theme-toggle .sun  { display: none; }
+    [data-theme="dark"]  .theme-toggle .moon { display: block; }
+
+    main { max-width: 1200px; margin: 1.5rem auto; padding: 0 1.5rem 3rem; }
+
+    /* ---------- Stats strip ---------- */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.8rem; margin-bottom: 1rem;
+    }
+    .stat-tile {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .stat-tile .label { font-size: 0.72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat-tile .value { font-size: 1.5rem; font-weight: 700; color: var(--ink); margin-top: 0.2rem; }
+    .stat-tile .sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
+
+    .bar-chart {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1.2rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .bar-chart h3 { margin-bottom: 0.8rem; }
+    .bar-row { display: grid; grid-template-columns: 160px 1fr 40px; gap: 0.6rem; align-items: center; margin-bottom: 0.4rem; }
+    .bar-row .bar-label { font-size: 0.82rem; color: var(--ink-soft); font-weight: 500; }
+    .bar-row .bar-track {
+      height: 10px; background: var(--surface-alt); border-radius: 6px;
+      border: 1px solid var(--border); overflow: hidden;
+    }
+    .bar-row .bar-fill {
+      height: 100%; background: linear-gradient(90deg, var(--accent) 0%, #14B8A6 100%);
+      transition: width .3s ease;
+    }
+    .bar-row .bar-count { font-size: 0.82rem; font-weight: 700; color: var(--ink); text-align: right; }
+
+    /* ---------- Filter + search row ---------- */
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+      margin-bottom: 1rem;
+    }
+    .chip {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.35rem 0.75rem; border-radius: 999px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; user-select: none;
+    }
+    .chip:hover { border-color: var(--accent); color: var(--accent); }
+    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .controls .spacer { flex: 1; }
+    .controls input[type="search"], .controls select {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.4rem 0.7rem;
+      color: var(--ink); font-size: 0.85rem; font-family: inherit;
+    }
+    .controls input[type="search"] { min-width: 200px; }
+
+    /* ---------- Tracker rows ---------- */
+    .tracker-row {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem; margin-bottom: 0.6rem;
+      display: grid;
+      grid-template-columns: 14px 1fr auto;
+      gap: 0.9rem; align-items: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+      cursor: pointer;
+    }
+    .tracker-row:hover { border-color: var(--accent); }
+    .tracker-row.hidden { display: none; }
+
+    .status-dot {
+      width: 12px; height: 12px; border-radius: 50%; background: var(--muted);
+      box-shadow: 0 0 0 3px rgba(148,163,184,0.15);
+    }
+    .status-dot.green  { background: var(--success); box-shadow: 0 0 0 3px rgba(52,211,153,0.18); }
+    .status-dot.blue   { background: var(--accent);  box-shadow: 0 0 0 3px rgba(129,140,248,0.18); }
+    .status-dot.yellow { background: var(--warn);    box-shadow: 0 0 0 3px rgba(245,158,11,0.18); }
+    .status-dot.red    { background: var(--error);   box-shadow: 0 0 0 3px rgba(220,38,38,0.18); }
+    .status-dot.grey   { background: var(--muted);   box-shadow: 0 0 0 3px rgba(148,163,184,0.15); }
+
+    .row-main { min-width: 0; }
+    .row-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .row-name { font-weight: 700; color: var(--ink); font-size: 0.98rem; }
+    .row-handle { color: var(--muted); font-size: 0.82rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .row-meta { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.3rem; font-size: 0.76rem; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.18rem 0.55rem; border-radius: 999px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); font-weight: 600;
+    }
+    .pill.stage-0 { background: rgba(148,163,184,0.12); color: var(--muted); }
+    .pill.stage-1 { background: rgba(129,140,248,0.15); color: var(--accent); border-color: rgba(129,140,248,0.3); }
+    .pill.stage-2 { background: rgba(245,158,11,0.15); color: var(--warn); border-color: rgba(245,158,11,0.3); }
+    .pill.stage-3 { background: rgba(59,130,246,0.15); color: #60A5FA; border-color: rgba(59,130,246,0.3); }
+    .pill.stage-4 { background: rgba(16,185,129,0.15); color: var(--success); border-color: rgba(16,185,129,0.3); }
+    .pill.followup-warn { background: rgba(245,158,11,0.15); color: var(--warn); border-color: rgba(245,158,11,0.3); }
+    .pill.followup-orange { background: rgba(251,146,60,0.18); color: #FB923C; border-color: rgba(251,146,60,0.3); }
+    .pill.followup-hot { background: rgba(220,38,38,0.15); color: var(--error); border-color: rgba(220,38,38,0.3); }
+
+    .row-actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+    .act-btn {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); padding: 0.3rem 0.55rem;
+      border-radius: 6px; font-size: 0.75rem; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    .act-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .act-btn.success:hover { border-color: var(--success); color: var(--success); }
+    .act-btn.danger:hover { border-color: var(--error); color: var(--error); }
+
+    .social-link {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 0.15rem 0.45rem; border-radius: 6px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); text-decoration: none;
+      font-size: 0.72rem; font-weight: 500;
+    }
+    .social-link:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ---------- Modals ---------- */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+      display: none; align-items: center; justify-content: center;
+      z-index: 100; padding: 1rem;
+    }
+    .modal-backdrop.show { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; max-width: 700px; width: 100%;
+      max-height: 88vh; overflow-y: auto;
+      padding: 1.4rem; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .modal-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1rem;
+    }
+    .modal-close {
+      background: transparent; border: none; color: var(--muted);
+      font-size: 1.4rem; cursor: pointer; line-height: 1;
+    }
+    .modal-section { margin-bottom: 1.2rem; }
+    .modal-section h3 { font-size: 0.9rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+
+    .path-chain {
+      display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center;
+      font-size: 0.8rem;
+    }
+    .path-chain .node {
+      padding: 0.25rem 0.55rem; border-radius: 6px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); font-weight: 600;
+    }
+    .path-chain .node.endpoint { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+    .path-chain .arrow { color: var(--muted); }
+
+    .msg-item {
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.7rem 0.9rem; margin-bottom: 0.5rem;
+    }
+    .msg-item .msg-meta { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.3rem; }
+    .msg-item .msg-body { font-size: 0.88rem; color: var(--ink); white-space: pre-wrap; }
+
+    .timeline-item {
+      display: grid; grid-template-columns: 90px 1fr; gap: 0.6rem;
+      font-size: 0.82rem; margin-bottom: 0.3rem;
+    }
+    .timeline-item .t-date { color: var(--muted); font-family: ui-monospace, monospace; }
+    .timeline-item .t-label { color: var(--ink-soft); font-weight: 600; }
+
+    textarea.followup-input {
+      width: 100%; min-height: 140px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.6rem 0.8rem;
+      color: var(--ink); font-family: inherit; font-size: 0.88rem;
+      resize: vertical;
+    }
+    .followup-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.6rem; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.45rem 0.9rem; border-radius: 8px;
+      font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface-alt);
+      color: var(--ink-soft); text-decoration: none; font-family: inherit;
+    }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn.primary:hover { filter: brightness(1.1); }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ---------- Reconnect section ---------- */
+    .section-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin: 2rem 0 0.8rem;
+    }
+    .section-head h2 { margin: 0; }
+    .section-head .count { color: var(--muted); font-size: 0.85rem; }
+
+    .recon-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem; margin-bottom: 0.6rem;
+      display: grid; grid-template-columns: 1fr auto; gap: 0.8rem;
+      align-items: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+
+    /* ---------- Toast ---------- */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; max-width: 340px;
+      padding: 0.85rem 1.1rem; border-radius: 12px;
+      background: var(--success); color: #fff;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+      font-size: 0.9rem; font-weight: 600;
+      transform: translateY(100px); opacity: 0;
+      transition: transform .3s ease, opacity .3s ease;
+      z-index: 200; pointer-events: none;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    .empty {
+      background: var(--surface); border: 1px dashed var(--border);
+      border-radius: 12px; padding: 1.5rem; text-align: center;
+      color: var(--muted); margin: 1rem 0;
+    }
+    .empty a { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+    @media (max-width: 800px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .tracker-row { grid-template-columns: 10px 1fr; }
+      .row-actions { grid-column: 1 / -1; margin-top: 0.4rem; }
+      .recon-card { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">Outreach Tracker</span>
+          <span class="brand-tag">Every intro you've sent, in one place</span>
+        </div>
+      </div>
+      <div class="nav-right">
+        <div class="dataset-badge" title="{{ dataset.people }} / {{ dataset.edges }}">
+          <span class="dot" aria-hidden="true"></span>
+          <strong>{{ dataset.count }}</strong>&nbsp;people
+        </div>
+        <a href="/" class="xa-nav-link" title="Back to the home page">← Back</a>
+        <a href="/revive" class="xa-nav-link" title="Dormant bridges">💤 Dormant</a>
+        <a href="/guide" class="xa-nav-link" title="How to use">📘 How to Use</a>
+        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+  <script>
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var cur  = document.documentElement.getAttribute('data-theme') || 'dark';
+        var next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+      });
+    })();
+  </script>
+
+  <main>
+    <h1>📋 Outreach Tracker</h1>
+    <p style="color: var(--muted); margin: 0 0 1.2rem;">
+      Everyone you've reached out to, with follow-up nudges based on how long it's been.
+    </p>
+
+    {% if not has_profile %}
+      <div class="empty">
+        Your profile isn't in the graph yet. <a href="/">Save your profile</a> to seed a network.
+      </div>
+    {% else %}
+      <!-- Stats strip -->
+      <div class="stats-grid">
+        <div class="stat-tile">
+          <div class="label">📤 Total Outreach</div>
+          <div class="value">{{ stats.total_outreach }}</div>
+          <div class="sub">messages sent</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">✅ Success Rate</div>
+          <div class="value">{{ stats.success_rate }}%</div>
+          <div class="sub">goal achieved</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">⏳ Avg Days to Reply</div>
+          <div class="value">{{ stats.avg_days_to_reply }}</div>
+          <div class="sub">across replies</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">🔥 Best Platform</div>
+          <div class="value" style="font-size: 1.15rem; padding-top: 0.3rem;">{{ stats.best_platform }}</div>
+          <div class="sub">most wins</div>
+        </div>
+      </div>
+
+      <!-- Bar chart -->
+      <div class="bar-chart">
+        <h3>Outreach by stage</h3>
+        {% set total_dist = (stats.stage_distribution.values()|sum) or 1 %}
+        {% for stage_num in [1, 2, 3, 4] %}
+          {% set count = stats.stage_distribution.get(stage_num, 0) %}
+          {% set pct = (count / total_dist * 100) | round(0, 'floor') %}
+          <div class="bar-row">
+            <div class="bar-label">{{ stage_labels[stage_num] }}</div>
+            <div class="bar-track"><div class="bar-fill" style="width: {{ pct }}%;"></div></div>
+            <div class="bar-count">{{ count }}</div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <span class="chip active" data-filter="all">All ({{ rows|length }})</span>
+        <span class="chip" data-filter="in-progress">In Progress</span>
+        <span class="chip" data-filter="awaiting">Awaiting Reply</span>
+        <span class="chip" data-filter="goal">Goal Achieved</span>
+        <span class="chip" data-filter="no-response">No Response</span>
+        <div class="spacer"></div>
+        <input type="search" id="track-search" placeholder="Search by name or handle…">
+        <select id="track-sort">
+          <option value="recent">Most recent</option>
+          <option value="oldest">Oldest</option>
+          <option value="stage">Stage</option>
+          <option value="waiting">Days waiting</option>
+        </select>
+      </div>
+
+      <!-- Rows -->
+      <div id="tracker-list">
+        {% if rows %}
+          {% for r in rows %}
+            <article class="tracker-row"
+                     data-target="{{ r.target_id }}"
+                     data-stage="{{ r.stage }}"
+                     data-color="{{ r.status_color }}"
+                     data-days="{{ r.days_since }}"
+                     data-search="{{ (r.name ~ ' ' ~ r.handle)|lower }}">
+              <span class="status-dot {{ r.status_color }}" aria-hidden="true"></span>
+              <div class="row-main">
+                <div class="row-head">
+                  <span class="row-name">{{ r.name }}</span>
+                  <span class="row-handle">{{ r.handle }}</span>
+                </div>
+                <div class="row-meta">
+                  <span class="pill stage-{{ r.stage }}">{{ r.stage_icon }} {{ r.stage_label }}</span>
+                  {% if r.days_since >= 0 %}
+                    <span class="pill">🕰 {{ r.days_since }}d ago</span>
+                  {% endif %}
+                  {% if r.followup_tier == 1 %}
+                    <span class="pill followup-warn">⚠ No reply yet</span>
+                  {% elif r.followup_tier == 2 %}
+                    <span class="pill followup-orange">⚠ Consider following up</span>
+                  {% elif r.followup_tier == 3 %}
+                    <span class="pill followup-hot">🔥 Try a different approach</span>
+                  {% endif %}
+                  {% if r.message_count > 1 %}
+                    <span class="pill">{{ r.message_count }} msgs</span>
+                  {% endif %}
+                </div>
+                {% if r.accounts %}
+                  <div class="row-meta">
+                    {% for a in r.accounts %}
+                      <a class="social-link" href="{{ a.url }}" target="_blank" rel="noopener">{{ a.platform_label }} ↗</a>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              <div class="row-actions" onclick="event.stopPropagation();">
+                {% if r.followup_tier > 0 %}
+                  <button class="act-btn" data-action="followup" data-tier="{{ r.followup_tier }}">✉️ Follow Up</button>
+                {% endif %}
+                {% if r.stage < 2 %}
+                  <button class="act-btn success" data-action="stage" data-stage="2">✅ Replied</button>
+                {% endif %}
+                {% if r.stage < 3 %}
+                  <button class="act-btn success" data-action="stage" data-stage="3">🤝 Meeting</button>
+                {% endif %}
+                {% if r.stage < 4 %}
+                  <button class="act-btn success" data-action="stage" data-stage="4">✅ Goal</button>
+                {% endif %}
+                <button class="act-btn danger" data-action="stage" data-stage="0" title="Mark no response">❌</button>
+              </div>
+            </article>
+          {% endfor %}
+        {% else %}
+          <div class="empty">
+            No outreach yet. Head to <a href="/">search</a> and send your first message to populate this tracker.
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Reconnect suggestions -->
+      {% if reconnect %}
+        <div class="section-head">
+          <h2>♻️ Reconnect Suggestions</h2>
+          <span class="count">Dormant contacts you haven't messaged</span>
+        </div>
+        {% for r in reconnect %}
+          <article class="recon-card" data-target="{{ r.id }}">
+            <div>
+              <div class="row-head">
+                <span class="row-name">{{ r.name }}</span>
+                <span class="row-handle">{{ r.handle }}</span>
+              </div>
+              <div class="row-meta">
+                <span class="pill">🕰 {{ r.days_since }} days</span>
+                <span class="pill">🔓 {{ r.reason }}</span>
+                {% if r.interaction_score > 0 %}
+                  <span class="pill">💬 score {{ r.interaction_score }}</span>
+                {% endif %}
+              </div>
+              {% if r.accounts %}
+                <div class="row-meta">
+                  {% for a in r.accounts %}
+                    <a class="social-link" href="{{ a.url }}" target="_blank" rel="noopener">{{ a.platform_label }} ↗</a>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            <div>
+              <button class="btn primary" data-action="reconnect" data-target="{{ r.id }}">Reconnect</button>
+            </div>
+          </article>
+        {% endfor %}
+      {% endif %}
+    {% endif %}
+  </main>
+
+  <!-- Detail modal -->
+  <div class="modal-backdrop" id="detail-modal">
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="detail-title">Outreach detail</h2>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <div id="detail-body">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Follow-up modal -->
+  <div class="modal-backdrop" id="followup-modal">
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="followup-title">Follow-up message</h2>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <p style="color: var(--muted); margin: 0 0 0.5rem; font-size: 0.85rem;" id="followup-sub"></p>
+      <textarea class="followup-input" id="followup-text"></textarea>
+      <div class="followup-actions">
+        <button class="btn primary" id="followup-copy">📋 Copy</button>
+        <a class="btn" id="followup-open" target="_blank" rel="noopener" href="#" style="display:none;">↗ Open platform</a>
+        {% if ai_key_present %}
+          <button class="btn" id="followup-ai">✨ Rewrite with AI</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const STAGE_LABELS = {{ stage_labels|tojson }};
+    const STAGE_ICONS  = {0:'⚪', 1:'📤', 2:'⏳', 3:'🤝', 4:'✅'};
+
+    function showToast(msg, kind) {
+      const el = document.getElementById('toast');
+      if (!el) return;
+      el.textContent = msg;
+      el.style.background = (kind === 'error') ? 'var(--error)' : 'var(--success)';
+      el.classList.add('show');
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => el.classList.remove('show'), 2600);
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('show'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+    document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', e => {
+      const m = e.target.closest('.modal-backdrop');
+      if (m) m.classList.remove('show');
+    }));
+    document.querySelectorAll('.modal-backdrop').forEach(m => m.addEventListener('click', e => {
+      if (e.target === m) m.classList.remove('show');
+    }));
+
+    // --- Filter chips ---
+    document.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const f = chip.dataset.filter;
+        document.querySelectorAll('.tracker-row').forEach(row => {
+          const stage = Number(row.dataset.stage);
+          const color = row.dataset.color;
+          let keep = true;
+          if (f === 'in-progress')    keep = stage >= 1 && stage < 4;
+          else if (f === 'awaiting')  keep = stage === 2;
+          else if (f === 'goal')      keep = stage === 4;
+          else if (f === 'no-response') keep = color === 'red';
+          row.classList.toggle('hidden', !keep);
+        });
+      });
+    });
+
+    // --- Search ---
+    document.getElementById('track-search')?.addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      document.querySelectorAll('.tracker-row').forEach(row => {
+        const hit = !q || row.dataset.search.includes(q);
+        row.classList.toggle('hidden', !hit);
+      });
+    });
+
+    // --- Sort ---
+    document.getElementById('track-sort')?.addEventListener('change', e => {
+      const mode = e.target.value;
+      const list = document.getElementById('tracker-list');
+      const rows = Array.from(list.querySelectorAll('.tracker-row'));
+      rows.sort((a, b) => {
+        const da = Number(a.dataset.days), db = Number(b.dataset.days);
+        const sa = Number(a.dataset.stage), sb = Number(b.dataset.stage);
+        if (mode === 'recent')   return (da < 0 ? 1e6 : da) - (db < 0 ? 1e6 : db);
+        if (mode === 'oldest')   return (db < 0 ? -1 : db) - (da < 0 ? -1 : da);
+        if (mode === 'stage')    return sb - sa;
+        if (mode === 'waiting')  return db - da;
+        return 0;
+      });
+      rows.forEach(r => list.appendChild(r));
+    });
+
+    // --- Row click → detail modal ---
+    document.querySelectorAll('.tracker-row').forEach(row => {
+      row.addEventListener('click', async () => {
+        const tid = row.dataset.target;
+        openModal('detail-modal');
+        document.getElementById('detail-title').textContent = row.querySelector('.row-name').textContent;
+        const body = document.getElementById('detail-body');
+        body.innerHTML = 'Loading…';
+        try {
+          const r = await fetch(`/tracker/detail/${encodeURIComponent(tid)}`);
+          const data = await r.json();
+          if (!data.ok) { body.textContent = 'Error loading detail.'; return; }
+          body.innerHTML = renderDetail(data);
+        } catch (err) {
+          body.textContent = 'Network error.';
+        }
+      });
+    });
+
+    function renderDetail(d) {
+      const node = d.node || {};
+      const path = d.path;
+      const msgs = d.messages || [];
+      const timeline = d.timeline || [];
+      let html = '';
+
+      // Person card
+      html += `<div class="modal-section"><h3>Person</h3>
+        <div><strong>${node.name || ''}</strong> <span class="row-handle">${node.handle || ''}</span></div>`;
+      if (node.accounts && node.accounts.length) {
+        html += '<div class="row-meta" style="margin-top:.4rem;">';
+        node.accounts.forEach(a => {
+          const lbl = a.platform.charAt(0).toUpperCase() + a.platform.slice(1);
+          html += `<a class="social-link" href="${a.url}" target="_blank" rel="noopener">${lbl} ↗</a>`;
+        });
+        html += '</div>';
+      }
+      if (node.interaction_score) {
+        html += `<div class="row-meta" style="margin-top:.4rem;"><span class="pill">💬 interaction score ${node.interaction_score}</span></div>`;
+      }
+      html += '</div>';
+
+      // Path
+      if (path && path.nodes) {
+        html += '<div class="modal-section"><h3>Warm intro path</h3><div class="path-chain">';
+        path.nodes.forEach((n, i) => {
+          const cls = (i === 0 || i === path.nodes.length - 1) ? 'node endpoint' : 'node';
+          html += `<span class="${cls}">${n.handle || n.name}</span>`;
+          if (i < path.nodes.length - 1) html += '<span class="arrow">→</span>';
+        });
+        html += '</div>';
+        html += `<p style="color:var(--muted);font-size:.8rem;margin-top:.4rem;">${path.hops} hops, total strength ${path.total_strength}</p>`;
+        if (d.mutuals && d.mutuals.length) {
+          html += '<div style="margin-top:.5rem;"><strong style="font-size:.85rem;">Mutuals used:</strong> ';
+          html += d.mutuals.map(m => `<span class="pill">${m.handle || m.name}</span>`).join(' ');
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+
+      // Timeline
+      if (timeline.length) {
+        html += '<div class="modal-section"><h3>Outreach timeline</h3>';
+        timeline.forEach(t => {
+          const lbl = STAGE_LABELS[t.stage] || ('Stage ' + t.stage);
+          const icon = STAGE_ICONS[t.stage] || '•';
+          html += `<div class="timeline-item"><span class="t-date">${t.at || '—'}</span><span class="t-label">${icon} ${lbl}</span></div>`;
+        });
+        html += '</div>';
+      }
+
+      // Messages
+      if (msgs.length) {
+        html += '<div class="modal-section"><h3>Message history</h3>';
+        msgs.forEach(m => {
+          const when = (m.created_at || '').slice(0, 16).replace('T', ' ');
+          html += `<div class="msg-item">
+            <div class="msg-meta">${when} • ${m.platform || 'in-system'} • ${m.to_handle || ''}</div>
+            <div class="msg-body">${escapeHtml(m.message || '')}</div>
+          </div>`;
+        });
+        html += '</div>';
+      } else {
+        html += '<div class="modal-section"><h3>Message history</h3><p style="color:var(--muted);">No messages logged for this contact.</p></div>';
+      }
+
+      return html;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // --- Quick actions (stage + follow-up) ---
+    let currentFollowupTarget = null;
+    let currentFollowupPlatformUrl = null;
+
+    document.querySelectorAll('.act-btn').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const row = btn.closest('.tracker-row');
+        const tid = row.dataset.target;
+        const action = btn.dataset.action;
+        if (action === 'stage') {
+          const stage = btn.dataset.stage;
+          const body = new URLSearchParams();
+          body.set('target_id', tid);
+          body.set('stage', stage);
+          try {
+            const r = await fetch('/outreach/stage', { method: 'POST', body });
+            const data = await r.json();
+            if (data.ok) {
+              showToast(`Marked: ${data.stage_label}`);
+              setTimeout(() => window.location.reload(), 700);
+            } else {
+              showToast(data.error || 'Failed', 'error');
+            }
+          } catch (err) { showToast('Network error', 'error'); }
+        } else if (action === 'followup') {
+          const tier = btn.dataset.tier;
+          openFollowup(tid, tier, row);
+        }
+      });
+    });
+
+    async function openFollowup(tid, tier, row) {
+      currentFollowupTarget = tid;
+      const body = new URLSearchParams();
+      body.set('target_id', tid);
+      body.set('tier', String(tier));
+      document.getElementById('followup-text').value = 'Generating…';
+      openModal('followup-modal');
+      try {
+        const r = await fetch('/tracker/follow-up', { method: 'POST', body });
+        const data = await r.json();
+        if (data.ok) {
+          document.getElementById('followup-text').value = data.message;
+          document.getElementById('followup-title').textContent = `Follow-up — ${data.label}`;
+          document.getElementById('followup-sub').textContent = `Tier ${data.tier} template. Edit freely before sending.`;
+          // Attach open-platform link from row's first social link if any.
+          const firstLink = row?.querySelector('.social-link');
+          const openBtn = document.getElementById('followup-open');
+          if (firstLink && openBtn) {
+            openBtn.href = firstLink.href;
+            openBtn.style.display = 'inline-flex';
+            currentFollowupPlatformUrl = firstLink.href;
+          } else {
+            openBtn.style.display = 'none';
+          }
+        } else {
+          document.getElementById('followup-text').value = '';
+          showToast(data.error || 'Failed', 'error');
+        }
+      } catch (err) {
+        showToast('Network error', 'error');
+      }
+    }
+
+    document.getElementById('followup-copy')?.addEventListener('click', async () => {
+      const txt = document.getElementById('followup-text').value;
+      try {
+        await navigator.clipboard.writeText(txt);
+        showToast('Copied to clipboard');
+      } catch (err) {
+        showToast('Copy failed', 'error');
+      }
+    });
+
+    document.getElementById('followup-ai')?.addEventListener('click', async () => {
+      if (!currentFollowupTarget) return;
+      const tier = document.getElementById('followup-title').textContent.match(/Tier (\d)/)?.[1] || '1';
+      const body = new URLSearchParams();
+      body.set('target_id', currentFollowupTarget);
+      body.set('tier', tier);
+      body.set('use_ai', 'true');
+      const ta = document.getElementById('followup-text');
+      const prev = ta.value;
+      ta.value = 'Rewriting…';
+      try {
+        const r = await fetch('/tracker/follow-up', { method: 'POST', body });
+        const data = await r.json();
+        ta.value = data.ok ? data.message : prev;
+        if (data.ok) showToast('Rewritten by AI'); else showToast(data.error || 'AI failed', 'error');
+      } catch (err) { ta.value = prev; showToast('AI error', 'error'); }
+    });
+
+    // --- Reconnect buttons ---
+    document.querySelectorAll('[data-action="reconnect"]').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const tid = btn.dataset.target;
+        const card = btn.closest('.recon-card');
+        const body = new URLSearchParams();
+        body.set('target_id', tid);
+        currentFollowupTarget = tid;
+        document.getElementById('followup-text').value = 'Generating…';
+        document.getElementById('followup-title').textContent = 'Reconnect message';
+        document.getElementById('followup-sub').textContent = 'Short warm reconnect — edit as needed.';
+        openModal('followup-modal');
+        try {
+          const r = await fetch('/tracker/reconnect-message', { method: 'POST', body });
+          const data = await r.json();
+          if (data.ok) {
+            document.getElementById('followup-text').value = data.message;
+            const firstLink = card?.querySelector('.social-link');
+            const openBtn = document.getElementById('followup-open');
+            if (firstLink && openBtn) {
+              openBtn.href = firstLink.href;
+              openBtn.style.display = 'inline-flex';
+            } else {
+              openBtn.style.display = 'none';
+            }
+          } else {
+            showToast(data.error || 'Failed', 'error');
+          }
+        } catch (err) { showToast('Network error', 'error'); }
+      });
+    });
+  </script>
+</body>
+</html>

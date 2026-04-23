@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dormant Bridges — Warm Intro Finder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('theme');
+        if (saved === 'light' || saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', saved);
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    :root, [data-theme="light"] {
+      --canvas: #F7F8FB; --surface: #FFFFFF; --surface-alt: #F8FAFC;
+      --ink: #0F172A; --ink-soft: #334155; --muted: #64748B;
+      --border: #E2E8F0; --accent: #4F46E5; --accent-soft: rgba(79,70,229,0.08);
+      --success: #10B981; --warn: #F59E0B; --error: #DC2626;
+    }
+    [data-theme="dark"] {
+      --canvas: #0F0F0F; --surface: #1A1A2E; --surface-alt: #15152A;
+      --ink: #F5F5FA; --ink-soft: #D1D5E3; --muted: #9BA3B5;
+      --border: #2A2A45; --accent: #818CF8; --accent-soft: rgba(129,140,248,0.12);
+      --success: #34D399; --warn: #FBBF24; --error: #F87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--canvas); color: var(--ink);
+      font-family: 'Inter', system-ui, sans-serif;
+      min-height: 100vh; line-height: 1.55;
+    }
+    main h1 { font-size: 1.65rem; font-weight: 700; color: var(--ink); margin: 0 0 0.5rem; letter-spacing: -0.02em; line-height: 1.2; }
+    main h2 { font-size: 1.15rem; font-weight: 700; color: var(--ink); margin: 0 0 0.8rem; letter-spacing: -0.01em; }
+    main h3 { font-size: 1rem;    font-weight: 600; color: var(--ink); margin: 0 0 0.5rem; }
+
+    :root, [data-theme="light"] { --nav-bg: rgba(255, 255, 255, 0.72); }
+    [data-theme="dark"] {
+      --nav-bg: rgba(15, 15, 15, 0.72);
+      --border-strong: #3B3B5A;
+    }
+    .navbar {
+      background: var(--nav-bg);
+      backdrop-filter: saturate(1.4) blur(10px);
+      -webkit-backdrop-filter: saturate(1.4) blur(10px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .navbar-inner {
+      max-width: 1120px; margin: 0 auto;
+      padding: 0.9rem 1.5rem;
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    }
+    .brand { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+    .brand-mark {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #6366F1 0%, #14B8A6 100%);
+      display: grid; place-items: center; color: #fff;
+      box-shadow: 0 6px 14px rgba(99, 102, 241, 0.28); flex-shrink: 0;
+    }
+    .brand-text { display: flex; flex-direction: column; min-width: 0; }
+    .brand-name { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.015em; color: var(--ink); }
+    .brand-tag { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+    .nav-right { display: flex; align-items: center; gap: 0.7rem; }
+    .dataset-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.78rem; color: var(--ink-soft); background: var(--surface);
+      padding: 0.35rem 0.7rem; border-radius: 999px;
+      border: 1px solid var(--border); font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.12); white-space: nowrap;
+    }
+    .dataset-badge .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--success);
+      box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
+    }
+    .xa-nav-link {
+      color: var(--ink-soft); text-decoration: none;
+      padding: 0.3rem 0.65rem; border-radius: 8px;
+      font-weight: 500; font-size: 0.85rem;
+      border: 1px solid var(--border); background: var(--surface-alt);
+    }
+    .xa-nav-link:hover { color: var(--accent); border-color: var(--accent); }
+    .theme-toggle {
+      display: inline-grid; place-items: center;
+      width: 34px; height: 34px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer; color: var(--ink-soft);
+    }
+    .theme-toggle svg { width: 18px; height: 18px; }
+    [data-theme="light"] .theme-toggle .moon { display: none; }
+    [data-theme="light"] .theme-toggle .sun  { display: block; }
+    [data-theme="dark"]  .theme-toggle .sun  { display: none; }
+    [data-theme="dark"]  .theme-toggle .moon { display: block; }
+
+    @media (max-width: 720px) {
+      .navbar-inner { padding: 0.75rem 1rem; }
+      .brand-tag { display: none; }
+      .dataset-badge { padding: 0.3rem 0.55rem; font-size: 0.72rem; }
+    }
+
+    /* ---------- Page body ---------- */
+    main { max-width: 960px; margin: 1.5rem auto; padding: 0 1.5rem 3rem; }
+
+    .intro {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.2rem 1.4rem; margin-bottom: 1.2rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .intro p { margin: 0.4rem 0 0; color: var(--ink-soft); font-size: 0.95rem; }
+    .intro .hint { color: var(--muted); font-size: 0.85rem; }
+
+    .summary-row {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.8rem; margin-bottom: 1.2rem;
+    }
+    .stat-tile {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .stat-tile .label { font-size: 0.75rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat-tile .value { font-size: 1.4rem; font-weight: 700; color: var(--ink); margin-top: 0.25rem; }
+    .stat-tile .sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
+
+    .section-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin: 1.6rem 0 0.6rem;
+    }
+    .section-head h2 { margin: 0; }
+    .section-head .count { color: var(--muted); font-size: 0.85rem; }
+
+    .bridge-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem;
+      margin-bottom: 0.6rem;
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      gap: 0.9rem; align-items: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .bridge-card:hover { border-color: var(--accent); }
+    .rank {
+      display: grid; place-items: center;
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--surface-alt); color: var(--ink-soft);
+      font-weight: 700; font-size: 0.95rem;
+      border: 1px solid var(--border);
+    }
+    .rank.top-1 { background: rgba(245,158,11,0.18); color: var(--warn); border-color: rgba(245,158,11,0.4); }
+    .rank.top-2 { background: rgba(129,140,248,0.18); color: var(--accent); border-color: rgba(129,140,248,0.4); }
+    .rank.top-3 { background: rgba(52,211,153,0.15); color: var(--success); border-color: rgba(52,211,153,0.35); }
+
+    .who-line { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .who-name { font-weight: 700; color: var(--ink); font-size: 0.98rem; }
+    .who-handle { color: var(--muted); font-size: 0.82rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .meta-row {
+      display: flex; gap: 0.45rem; flex-wrap: wrap; margin-top: 0.35rem;
+      font-size: 0.76rem;
+    }
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.2rem 0.55rem; border-radius: 999px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); font-weight: 600;
+    }
+    .pill.dormant-hot  { background: rgba(220,38,38,0.12);  color: var(--error); border-color: rgba(220,38,38,0.3); }
+    .pill.dormant-warm { background: rgba(245,158,11,0.15); color: var(--warn);  border-color: rgba(245,158,11,0.3); }
+    .pill.dormant-cool { background: rgba(52,211,153,0.12); color: var(--success); border-color: rgba(52,211,153,0.3); }
+    .pill.unlock { background: rgba(129,140,248,0.15); color: var(--accent); border-color: rgba(129,140,248,0.3); }
+    .pill.unique { background: rgba(16,185,129,0.12); color: var(--success); border-color: rgba(16,185,129,0.3); }
+
+    .score-block { text-align: right; min-width: 80px; }
+    .score-block .score-val {
+      font-size: 1.35rem; font-weight: 700; color: var(--accent);
+      letter-spacing: -0.01em;
+    }
+    .score-block .score-label {
+      font-size: 0.68rem; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.05em; font-weight: 600;
+    }
+
+    .links-row {
+      display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.4rem;
+    }
+    .social-link {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 0.2rem 0.55rem; border-radius: 6px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      color: var(--ink-soft); text-decoration: none;
+      font-size: 0.75rem; font-weight: 500;
+    }
+    .social-link:hover { color: var(--accent); border-color: var(--accent); }
+
+    .empty {
+      background: var(--surface); border: 1px dashed var(--border);
+      border-radius: 12px; padding: 1.5rem; text-align: center;
+      color: var(--muted); margin-bottom: 1rem;
+    }
+    .empty a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .empty a:hover { text-decoration: underline; }
+
+    details.never-block {
+      margin-top: 1rem; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 0.8rem 1rem;
+    }
+    details.never-block summary {
+      cursor: pointer; font-weight: 600; color: var(--ink-soft);
+      font-size: 0.9rem; list-style: none;
+    }
+    details.never-block summary::-webkit-details-marker { display: none; }
+    details.never-block[open] summary { margin-bottom: 0.6rem; }
+
+    @media (max-width: 620px) {
+      .summary-row { grid-template-columns: 1fr; }
+      .bridge-card { grid-template-columns: 32px 1fr; }
+      .score-block { grid-column: 1 / -1; text-align: left; margin-top: 0.3rem; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">Dormant Bridges</span>
+          <span class="brand-tag">Who to reconnect with this week</span>
+        </div>
+      </div>
+      <div class="nav-right">
+        <div class="dataset-badge" title="{{ dataset.people }} / {{ dataset.edges }}">
+          <span class="dot" aria-hidden="true"></span>
+          <strong>{{ dataset.count }}</strong>&nbsp;people
+        </div>
+        <a href="/" class="xa-nav-link" title="Back to the home page">← Back</a>
+        <a href="/tracker" class="xa-nav-link" title="Outreach Tracker">📋 Tracker</a>
+        <a href="/guide" class="xa-nav-link" title="How to use Warm Intro Finder">📘 How to Use</a>
+        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+  <script>
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var cur  = document.documentElement.getAttribute('data-theme') || 'dark';
+        var next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+      });
+    })();
+  </script>
+
+  <main>
+    <div class="intro">
+      <h1>💤 Dormant bridges</h1>
+      <p>
+        Some of your strongest intro opportunities aren't with new people —
+        they're with the 1st-degree contacts you've drifted away from.
+        This page ranks your direct connections by how much <strong>2nd-degree reach</strong>
+        they unlock, weighted by how many months since you last talked.
+        A high score means: <em>"if you reconnect with this person, you reactivate a big slice of your network."</em>
+      </p>
+      <p class="hint">Score = 2nd-degree contacts unlocked × months since last interaction. Recompute every render from <code>identities.csv</code>.</p>
+    </div>
+
+    {% if not summary.has_profile %}
+      <div class="empty">
+        <p>Your profile isn't in the graph yet. <a href="/">Save your profile</a> to seed a network first.</p>
+      </div>
+    {% elif summary.first_degree_count == 0 %}
+      <div class="empty">
+        <p>You don't have any 1st-degree contacts in the graph yet.</p>
+      </div>
+    {% else %}
+      <div class="summary-row">
+        <div class="stat-tile">
+          <div class="label">Direct contacts</div>
+          <div class="value">{{ summary.first_degree_count }}</div>
+          <div class="sub">1st-degree in your network</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">2nd-degree reach</div>
+          <div class="value">{{ summary.total_unlocks }}</div>
+          <div class="sub">unlocked via bridges below</div>
+        </div>
+        <div class="stat-tile">
+          <div class="label">Longest gap</div>
+          <div class="value">{{ summary.max_months }} mo</div>
+          <div class="sub">since last interaction</div>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <h2>Ranked dormant bridges</h2>
+        <span class="count">{{ bridges|length }} shown</span>
+      </div>
+
+      {% if bridges %}
+        {% for b in bridges %}
+          <div class="bridge-card">
+            <div class="rank {% if loop.index == 1 %}top-1{% elif loop.index == 2 %}top-2{% elif loop.index == 3 %}top-3{% endif %}">
+              {{ loop.index }}
+            </div>
+            <div>
+              <div class="who-line">
+                <span class="who-name">{{ b.name }}</span>
+                <span class="who-handle">{{ b.handle }}</span>
+              </div>
+              <div class="meta-row">
+                <span class="pill unlock" title="2nd-degree contacts reachable through this bridge">
+                  🔓 unlocks {{ b.bridge_value }}
+                </span>
+                {% if b.unique_unlocks > 0 %}
+                  <span class="pill unique" title="Reachable ONLY through this bridge — no redundant path">
+                    💎 {{ b.unique_unlocks }} unique
+                  </span>
+                {% endif %}
+                {% set m = b.months_since %}
+                <span class="pill {% if m >= 6 %}dormant-hot{% elif m >= 3 %}dormant-warm{% else %}dormant-cool{% endif %}"
+                      title="Last interaction: {{ b.last_interaction or '—' }}">
+                  🕰 {{ m }} mo ago
+                </span>
+              </div>
+              {% if b.accounts %}
+                <div class="links-row">
+                  {% for a in b.accounts %}
+                    <a class="social-link" href="{{ a.url }}" target="_blank" rel="noopener noreferrer">
+                      {{ a.platform_label or a.platform }} ↗
+                    </a>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+            <div class="score-block">
+              <div class="score-val">{{ b.score }}</div>
+              <div class="score-label">score</div>
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty">
+          <p>No dormant bridges yet — you've talked to everyone recently, or no interaction dates are logged.</p>
+        </div>
+      {% endif %}
+
+      {% if never_logged %}
+        <details class="never-block">
+          <summary>Contacts with no interaction log ({{ never_logged|length }})</summary>
+          {% for b in never_logged %}
+            <div class="bridge-card" style="margin-top: 0.5rem;">
+              <div class="rank">·</div>
+              <div>
+                <div class="who-line">
+                  <span class="who-name">{{ b.name }}</span>
+                  <span class="who-handle">{{ b.handle }}</span>
+                </div>
+                <div class="meta-row">
+                  <span class="pill unlock">🔓 unlocks {{ b.bridge_value }}</span>
+                  <span class="pill">🕰 no data</span>
+                </div>
+              </div>
+              <div class="score-block">
+                <div class="score-val">—</div>
+                <div class="score-label">score</div>
+              </div>
+            </div>
+          {% endfor %}
+        </details>
+      {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

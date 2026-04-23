@@ -950,6 +950,64 @@
     .stat-card.strong .stat-value { color: var(--success); }
     .stat-card.moderate .stat-value { color: #2563EB; }
 
+    /* Clickable People stat */
+    .stat-card-btn {
+      font-family: inherit; text-align: left;
+      cursor: pointer; appearance: none;
+    }
+    .stat-card-btn:hover { border-color: var(--accent); }
+    .stat-card-btn .stat-hint {
+      font-size: 0.68rem; color: var(--muted); font-weight: 500;
+      opacity: 0.7; margin-top: 0.1rem;
+    }
+    .stat-card-btn:hover .stat-hint { color: var(--accent); opacity: 1; }
+
+    /* People-by-platform modal */
+    .ppl-modal-back {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+      display: none; align-items: center; justify-content: center;
+      z-index: 100; padding: 1rem;
+    }
+    .ppl-modal-back.show { display: flex; }
+    .ppl-modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; max-width: 480px; width: 100%;
+      padding: 1.3rem; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .ppl-modal-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 0.8rem;
+    }
+    .ppl-modal-head h3 { margin: 0; font-size: 1.05rem; color: var(--ink); }
+    .ppl-modal-total { color: var(--muted); font-size: 0.85rem; font-family: ui-monospace, monospace; }
+    .ppl-modal-close {
+      background: transparent; border: none; color: var(--muted);
+      font-size: 1.4rem; cursor: pointer; line-height: 1;
+    }
+    .ppl-row {
+      display: grid; grid-template-columns: 28px 1fr auto;
+      gap: 0.7rem; align-items: center;
+      padding: 0.7rem 0.8rem; border-radius: 10px;
+      background: var(--surface-alt); border: 1px solid var(--border);
+      margin-bottom: 0.4rem;
+    }
+    .ppl-row .platform-icon {
+      font-size: 1.1rem; display: grid; place-items: center;
+    }
+    .ppl-row .platform-name { color: var(--ink); font-weight: 600; font-size: 0.92rem; }
+    .ppl-row .platform-count {
+      font-size: 1.25rem; font-weight: 700; color: var(--accent);
+      letter-spacing: -0.01em;
+    }
+    .ppl-row .platform-pct {
+      font-size: 0.72rem; color: var(--muted); font-weight: 500;
+      margin-left: 0.35rem;
+    }
+    .ppl-empty {
+      text-align: center; color: var(--muted); padding: 1.5rem 0;
+      font-size: 0.9rem;
+    }
+
     /* ---------- Graph visualization ---------- */
     .graph-card { padding-bottom: 1rem; }
     .graph-head {
@@ -991,6 +1049,49 @@
     .graph-legend .dot.strong      { background: #3B82F6; }
     .graph-legend .dot.moderate    { background: #F59E0B; }
     .graph-legend .dot.weak        { background: #94A3B8; }
+
+    /* Graph mode toggle (Path / 1° / 2° / Full) */
+    .graph-mode-bar {
+      display: flex; flex-wrap: wrap; align-items: center;
+      gap: 0.35rem; margin: 0 0 0.6rem;
+    }
+    .graph-mode-bar .mode-label {
+      font-size: 0.72rem; color: var(--muted); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em; margin-right: 0.2rem;
+    }
+    .mode-btn {
+      padding: 0.3rem 0.7rem; border-radius: 7px;
+      background: var(--surface); color: var(--ink-soft);
+      border: 1px solid var(--border); cursor: pointer;
+      font-family: inherit; font-size: 0.78rem; font-weight: 600;
+      transition: all .15s; display: inline-flex; align-items: center; gap: 0.25rem;
+    }
+    .mode-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .mode-btn.active {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+    .mode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .graph-mode-bar .stat {
+      font-size: 0.72rem; color: var(--muted); margin-left: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    /* Graph loading overlay */
+    .graph-wrap { position: relative; }
+    .graph-spinner {
+      position: absolute; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(15, 15, 15, 0.55);
+      backdrop-filter: blur(2px); border-radius: 12px; z-index: 5;
+    }
+    [data-theme="light"] .graph-spinner { background: rgba(255,255,255,0.55); }
+    .graph-spinner.show { display: flex; }
+    .graph-spinner .ring {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 3px solid var(--border); border-top-color: var(--accent);
+      animation: graph-spin 0.8s linear infinite;
+    }
+    @keyframes graph-spin { to { transform: rotate(360deg); } }
 
     /* ---------- Quick-stats bar ---------- */
     .quick-stats {
@@ -1452,6 +1553,8 @@
           <span class="dot" aria-hidden="true"></span>
           <strong>{{ dataset.count }}</strong>&nbsp;people
         </div>
+        <a href="/tracker" class="xa-nav-link" title="Outreach Tracker">📋 Tracker</a>
+        <a href="/revive" class="xa-nav-link" title="Surface neglected bridges in your network">💤 Dormant Bridges</a>
         <a href="/guide" class="xa-nav-link" title="How to use Warm Intro Finder">📘 How to Use</a>
         <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
           <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -1528,10 +1631,14 @@
 
     <!-- Real-time network statistics dashboard -->
     <div class="stats-dashboard" id="stats-dashboard">
-      <div class="stat-card accent">
+      <button type="button" class="stat-card accent stat-card-btn" id="people-stat-btn"
+              title="Click for per-platform breakdown"
+              data-counts='{{ stats.per_platform_counts | tojson | safe }}'
+              data-total="{{ stats.people_count }}">
         <div class="stat-head"><span class="stat-icon">👥</span><span class="stat-label">People</span></div>
         <div class="stat-value">{{ stats.people_count }}</div>
-      </div>
+        <div class="stat-hint">Click to see by platform →</div>
+      </button>
       <div class="stat-card">
         <div class="stat-head"><span class="stat-icon">🔗</span><span class="stat-label">Connections</span></div>
         <div class="stat-value">{{ stats.edges_count }}</div>
@@ -1587,7 +1694,18 @@
           <span class="label">Hide graph</span>
         </button>
       </div>
-      <div class="graph-container" id="graph-container" aria-label="Interactive network graph"></div>
+      <div class="graph-mode-bar" role="tablist" aria-label="Graph detail level">
+        <span class="mode-label">View:</span>
+        <button type="button" class="mode-btn" data-mode="path"   title="Only warm-intro path nodes (fastest)">🎯 Path</button>
+        <button type="button" class="mode-btn" data-mode="first"  title="You + direct 1st-degree connections">1° Direct</button>
+        <button type="button" class="mode-btn" data-mode="second" title="You + 1st + 2nd-degree">2° Extended</button>
+        <button type="button" class="mode-btn" data-mode="full"   title="Top-degree subsample of the whole network (slowest)">🌐 Full</button>
+        <span class="stat" id="graph-stat">—</span>
+      </div>
+      <div class="graph-wrap">
+        <div class="graph-container" id="graph-container" aria-label="Interactive network graph"></div>
+        <div class="graph-spinner" id="graph-spinner" aria-hidden="true"><div class="ring"></div></div>
+      </div>
       <div class="graph-legend">
         <span class="swatch"><span class="dot very-strong"></span> Very Strong 12-15</span>
         <span class="swatch"><span class="dot strong"></span> Strong 8-11</span>
@@ -2156,6 +2274,7 @@
   <script>
     const SEARCH_INDEX = {{ search_index_json|safe }};
     const GRAPH_DATA   = {{ graph_data_json|safe }};
+    const GRAPH_TARGET_ID = {% if result and result.target %}{{ result.target.id | tojson | safe }}{% else %}null{% endif %};
     // Profile platforms — used to flag "mutual with you" per platform
     // in the interaction-details modal.
     const PROFILE_PLATFORMS = {{ (profile.accounts or []) | map(attribute='platform') | list | tojson | safe }};
@@ -2710,6 +2829,9 @@
       };
       const accent = '#4F46E5';
 
+      // Keep the latest graph payload so theme-flip / mode-change can rebuild.
+      let currentData = GRAPH_DATA;
+
       function themePalette() {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         return {
@@ -2722,48 +2844,51 @@
         };
       }
 
-      function buildDataSets(palette) {
-        const nodes = GRAPH_DATA.nodes.map((n) => ({
-          id: n.id,
-          label: n.label || n.id,
-          title: n.title || n.label || n.id,
-          // Scale size 12-30 based on degree (connection count)
-          size: Math.max(12, Math.min(30, 10 + (n.degree || 0) * 1.5)),
-          shape: n.is_me ? 'diamond' : 'dot',
-          color: {
-            background: n.is_me ? accent : (n.highlight ? '#14B8A6' : palette.nodeBg),
-            border:     n.is_me ? accent : (n.highlight ? '#14B8A6' : palette.nodeBorder),
-            highlight:  { background: accent, border: accent },
-          },
-          borderWidth: n.highlight || n.is_me ? 3 : 1,
-          font: { color: palette.nodeText, size: 11, face: 'Inter, sans-serif', strokeWidth: 0 },
-        }));
-        // Defensive dedup: collapse any (a,b) + (b,a) so only ONE line is drawn
-        // per connection. Keep the "highlighted" variant if either direction was.
+      function buildDataSets(data, palette) {
+        const hasPath = !!data.has_path;
+        const nodes = data.nodes.map((n) => {
+          // When a path exists: fade non-path nodes so the path pops.
+          const dimmed = hasPath && !n.highlight && !n.is_me;
+          return {
+            id: n.id,
+            label: n.label || n.id,
+            title: n.title || n.label || n.id,
+            size: Math.max(12, Math.min(30, 10 + (n.degree || 0) * 1.5)),
+            shape: n.is_me ? 'diamond' : 'dot',
+            opacity: dimmed ? 0.28 : 1.0,
+            color: {
+              background: n.is_me ? accent : (n.highlight ? '#14B8A6' : palette.nodeBg),
+              border:     n.is_me ? accent : (n.highlight ? '#14B8A6' : palette.nodeBorder),
+              highlight:  { background: accent, border: accent },
+            },
+            borderWidth: n.highlight || n.is_me ? 3 : 1,
+            font: {
+              color: dimmed ? palette.nodeBorder : palette.nodeText,
+              size: 11, face: 'Inter, sans-serif', strokeWidth: 0,
+            },
+          };
+        });
         const seen = new Map();
-        for (const e of GRAPH_DATA.edges) {
+        for (const e of data.edges) {
           const key = e.from < e.to ? e.from + '|' + e.to : e.to + '|' + e.from;
           const prev = seen.get(key);
           if (!prev) { seen.set(key, { ...e }); continue; }
           if (e.highlight) prev.highlight = true;
-          // Keep the strongest band if two entries collide.
           if ((e.strength || 0) > (prev.strength || 0)) {
             prev.strength = e.strength;
             prev.band = e.band;
           }
         }
         const edges = Array.from(seen.values()).map((e) => ({
-          from: e.from,
-          to: e.to,
+          id: (e.from < e.to ? e.from + '|' + e.to : e.to + '|' + e.from),
+          from: e.from, to: e.to,
           title: 'strength ' + e.strength,
           color: {
             color: bandColor[e.band] || palette.nodeBorder,
             highlight: bandColor[e.band] || accent,
-            opacity: e.highlight ? 1.0 : 0.38,
+            opacity: e.highlight ? 1.0 : (hasPath ? 0.12 : 0.38),
           },
           width: e.highlight ? 2.6 : 1,
-          // Straight lines — no curves, no "dynamic" smoothing that creates
-          // overlapping arcs. Each connection renders as a single clean edge.
           smooth: false,
           font: {
             color: palette.edgeLabel,
@@ -2777,9 +2902,9 @@
       }
 
       let palette = themePalette();
-      let { nodes, edges } = buildDataSets(palette);
-      const nodesSet = new vis.DataSet(nodes);
-      const edgesSet = new vis.DataSet(edges);
+      let built = buildDataSets(currentData, palette);
+      const nodesSet = new vis.DataSet(built.nodes);
+      const edgesSet = new vis.DataSet(built.edges);
 
       const network = new vis.Network(
         container,
@@ -2787,11 +2912,10 @@
         {
           interaction: { hover: true, zoomView: true, dragView: true, tooltipDelay: 150 },
           physics: {
-            stabilization: { iterations: 300 },
+            stabilization: { iterations: 250, updateInterval: 25, fit: true },
             barnesHut: { gravitationalConstant: -4500, springLength: 170, springConstant: 0.035, avoidOverlap: 0.2 },
           },
           nodes: { scaling: { min: 10, max: 40 } },
-          // Global edge defaults — single straight line per connection.
           edges: {
             selectionWidth: 2,
             smooth: false,
@@ -2800,16 +2924,91 @@
         }
       );
 
-      // If there's a highlighted path, center on "me" after stabilization.
+      // Freeze physics once the layout has settled → no more CPU spin.
       network.once('stabilizationIterationsDone', () => {
-        const meNode = nodes.find((n) => n.id === 'me');
+        network.setOptions({ physics: { enabled: false } });
+        const meNode = currentData.nodes.find((n) => n.id === 'me');
         if (meNode) network.focus('me', { scale: 0.9, animation: true });
       });
+
+      // Stat readout under the mode bar.
+      function updateStat() {
+        const el = document.getElementById('graph-stat');
+        if (!el || !currentData) return;
+        const shown = currentData.nodes.length;
+        const total = currentData.total_nodes || shown;
+        el.textContent = `${shown}/${total} nodes · ${currentData.edges.length} edges`;
+      }
+
+      function setActive(mode) {
+        document.querySelectorAll('.mode-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.mode === mode);
+        });
+      }
+
+      function setSpinner(on) {
+        const el = document.getElementById('graph-spinner');
+        if (el) el.classList.toggle('show', !!on);
+      }
+
+      // Replace nodes/edges atomically with the new dataset.
+      function applyData(data) {
+        currentData = data;
+        palette = themePalette();
+        const rebuilt = buildDataSets(currentData, palette);
+        nodesSet.clear(); edgesSet.clear();
+        nodesSet.add(rebuilt.nodes); edgesSet.add(rebuilt.edges);
+        network.setOptions({ physics: { enabled: true } });
+        // Let physics settle briefly, then freeze again for perf.
+        network.stabilize(150);
+        network.once('stabilizationIterationsDone', () => {
+          network.setOptions({ physics: { enabled: false } });
+          const meNode = rebuilt.nodes.find((n) => n.id === 'me');
+          if (meNode) network.focus('me', { scale: 0.9, animation: true });
+        });
+        updateStat();
+      }
+
+      async function switchMode(mode) {
+        if (!mode) return;
+        // "path" requires a target — skip if there isn't one yet.
+        const btn = document.querySelector(`.mode-btn[data-mode="${mode}"]`);
+        if (mode === 'path' && !GRAPH_TARGET_ID) {
+          if (btn) btn.blur();
+          return;
+        }
+        setActive(mode);
+        setSpinner(true);
+        try {
+          const params = new URLSearchParams();
+          params.set('mode', mode);
+          if (GRAPH_TARGET_ID) params.set('target', GRAPH_TARGET_ID);
+          const r = await fetch('/graph/data?' + params.toString());
+          const data = await r.json();
+          if (data && data.nodes) applyData(data);
+        } catch (err) {
+          console.warn('graph mode fetch failed', err);
+        } finally {
+          setSpinner(false);
+        }
+      }
+
+      // Wire the toggle buttons.
+      document.querySelectorAll('.mode-btn').forEach(b => {
+        b.addEventListener('click', () => switchMode(b.dataset.mode));
+        // Disable "path" when there's no target.
+        if (b.dataset.mode === 'path' && !GRAPH_TARGET_ID) {
+          b.disabled = true;
+          b.title = 'Search a target first to see the warm-intro path';
+        }
+      });
+      setActive(currentData.mode || 'first');
+      updateStat();
 
       // FIX7 — Re-color the graph when the theme toggles.
       function applyThemeToGraph() {
         palette = themePalette();
-        const rebuilt = buildDataSets(palette);
+        const rebuilt = buildDataSets(currentData, palette);
         nodesSet.update(rebuilt.nodes);
         edgesSet.update(rebuilt.edges);
       }
@@ -2827,6 +3026,7 @@
       // Expose for debug
       window._network = network;
       window._applyThemeToGraph = applyThemeToGraph;
+      window._switchGraphMode = switchMode;
     })();
   </script>
 
@@ -2979,6 +3179,65 @@
           xToast('Path #' + rank + ' selected.');
         });
       }
+    })();
+  </script>
+
+  <!-- People-by-platform modal -->
+  <div class="ppl-modal-back" id="ppl-modal-back" role="dialog" aria-modal="true" aria-labelledby="ppl-modal-title">
+    <div class="ppl-modal">
+      <div class="ppl-modal-head">
+        <div>
+          <h3 id="ppl-modal-title">People by platform</h3>
+          <div class="ppl-modal-total" id="ppl-modal-total"></div>
+        </div>
+        <button type="button" class="ppl-modal-close" id="ppl-modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div id="ppl-modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const btn = document.getElementById('people-stat-btn');
+      const back = document.getElementById('ppl-modal-back');
+      const body = document.getElementById('ppl-modal-body');
+      const totalEl = document.getElementById('ppl-modal-total');
+      const closeBtn = document.getElementById('ppl-modal-close');
+      if (!btn || !back) return;
+
+      const ICONS = { twitter: '🐦', farcaster: '🟣', linkedin: '💼', wallet: '⛓️' };
+
+      function open() {
+        let counts = [];
+        try { counts = JSON.parse(btn.dataset.counts || '[]'); }
+        catch (e) { counts = []; }
+        const total = Number(btn.dataset.total || 0);
+        totalEl.textContent = `Total people in network: ${total}`;
+
+        if (!counts.length) {
+          body.innerHTML = '<div class="ppl-empty">No platforms configured on your profile yet. Add a handle under <strong>Your profile</strong> to see per-platform counts.</div>';
+        } else {
+          const note = '<div style="color: var(--muted); font-size: 0.78rem; margin-bottom: 0.7rem;">Counts show people reachable via platforms on <strong>your profile</strong>. Add more handles to unlock more of the network.</div>';
+          body.innerHTML = note + counts.map((c) => {
+            const icon = ICONS[c.platform] || '🔗';
+            const pct = total > 0 ? Math.round((c.count / total) * 100) : 0;
+            return `<div class="ppl-row">
+              <span class="platform-icon">${icon}</span>
+              <span class="platform-name">${c.label}</span>
+              <span><span class="platform-count">${c.count.toLocaleString()}</span><span class="platform-pct">(${pct}%)</span></span>
+            </div>`;
+          }).join('');
+        }
+        back.classList.add('show');
+      }
+      function close() { back.classList.remove('show'); }
+
+      btn.addEventListener('click', open);
+      closeBtn.addEventListener('click', close);
+      back.addEventListener('click', (e) => { if (e.target === back) close(); });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && back.classList.contains('show')) close();
+      });
     })();
   </script>
 </body>

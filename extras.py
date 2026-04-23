@@ -143,20 +143,31 @@ def stage_from_raw(raw: dict | None) -> int:
     return 0
 
 
-def apply_stage(raw: dict | None, stage: int) -> dict:
+def apply_stage(raw: dict | None, stage: int, now: str | None = None) -> dict:
     """Return a new status dict reflecting the given stage.
 
     Monotonic: setting stage=3 implies message_sent=True, reply_received=True,
     meeting_scheduled=True. Downward moves clear higher flags.
+
+    Additive F9 extension: stamps `last_action_at` (ISO date) and appends to
+    `stage_history` whenever the stage actually changes. Existing callers that
+    don't pass `now` get today's date; existing readers ignore these fields.
     """
     stage = max(0, min(4, int(stage)))
     raw = dict(raw or {})
+    prev_stage = int(raw.get("stage") or 0)
     raw["visited_profile"]   = stage >= 1 or bool(raw.get("visited_profile"))
     raw["message_sent"]      = stage >= 1
     raw["reply_received"]    = stage >= 2
     raw["meeting_scheduled"] = stage >= 3
     raw["goal_achieved"]     = stage >= 4
     raw["stage"]             = stage
+    if stage != prev_stage or "last_action_at" not in raw:
+        stamp = now or date.today().isoformat()
+        raw["last_action_at"] = stamp
+        history = list(raw.get("stage_history") or [])
+        history.append({"stage": stage, "at": stamp})
+        raw["stage_history"] = history
     return raw
 
 
@@ -362,4 +373,313 @@ def influence_score(node_id: str, graph, *, profile_id: str = "me",
 
     raw = 0.40 * connections_norm + 0.35 * interaction_norm + 0.25 * platform_norm
     return int(round(raw * 100))
+
+
+# -------------------------------------------------------------------------
+# F9 — Dormant Bridge Surfacer
+# -------------------------------------------------------------------------
+
+def _months_between(start: date, end: date) -> float:
+    return max(0.0, (end - start).days / 30.44)
+
+
+def dormant_bridges(graph, profile_id: str, *, today: date | None = None,
+                    limit: int = 25) -> dict:
+    """Rank 1st-degree contacts by `bridge_value * months_since_last_interaction`.
+
+    `bridge_value` = number of 2nd-degree nodes reachable through this
+    contact (excluding the profile itself and the profile's other
+    1st-degree contacts — those don't need an intro).
+    `unique_unlocks` = subset of `bridge_value` that is reachable *only*
+    through this bridge (no redundant path).
+    """
+    today = today or date.today()
+    first_degree = set(graph.adjacency.get(profile_id, ()))
+    if not first_degree:
+        return {
+            "bridges": [], "never_logged": [],
+            "first_degree_count": 0, "max_months": 0.0,
+            "total_unlocks": 0,
+        }
+
+    reach_map: dict[str, set[str]] = {}
+    for b in first_degree:
+        second = set()
+        for nb in graph.adjacency.get(b, ()):
+            if nb == profile_id or nb in first_degree:
+                continue
+            second.add(nb)
+        reach_map[b] = second
+
+    reach_count: Counter = Counter()
+    for s_set in reach_map.values():
+        for s in s_set:
+            reach_count[s] += 1
+
+    bridges: list[dict] = []
+    never: list[dict] = []
+    for b in first_degree:
+        reach = reach_map[b]
+        unique = sum(1 for s in reach if reach_count[s] == 1)
+        meta = graph.id_to_meta.get(b, {}) or {}
+        last_raw = (meta.get("last_interaction") or "").strip()
+        last_date = _parse_date(last_raw)
+        months = _months_between(last_date, today) if last_date else None
+        row = {
+            "id": b,
+            "name": graph.id_to_name.get(b, b),
+            "bridge_value": len(reach),
+            "unique_unlocks": unique,
+            "last_interaction": last_raw,
+            "months_since": round(months, 1) if months is not None else None,
+            "score": round(len(reach) * months, 1) if months is not None else None,
+        }
+        if months is None:
+            never.append(row)
+        else:
+            bridges.append(row)
+
+    bridges.sort(key=lambda r: (r["score"] or 0, r["bridge_value"]), reverse=True)
+    never.sort(key=lambda r: r["bridge_value"], reverse=True)
+    max_months = max((b["months_since"] or 0) for b in bridges) if bridges else 0.0
+    total_unlocks = sum(b["bridge_value"] for b in bridges)
+    return {
+        "bridges": bridges[:limit],
+        "never_logged": never[:limit],
+        "first_degree_count": len(first_degree),
+        "max_months": round(max_months, 1),
+        "total_unlocks": total_unlocks,
+    }
+
+
+# -------------------------------------------------------------------------
+# F10 — Outreach Tracker
+# -------------------------------------------------------------------------
+
+STAGE_ICONS = {
+    0: "⚪",
+    1: "📤",
+    2: "⏳",
+    3: "🤝",
+    4: "✅",
+}
+
+
+def _pending_for(target_id: str, pending_store: list) -> list[dict]:
+    return [m for m in (pending_store or []) if m.get("target_id") == target_id]
+
+
+def _latest_message_for(target_id: str, pending_store: list) -> dict | None:
+    msgs = _pending_for(target_id, pending_store)
+    if not msgs:
+        return None
+    return max(msgs, key=lambda m: m.get("created_at") or "")
+
+
+def _days_since(iso: str | None, today: date) -> int | None:
+    if not iso:
+        return None
+    try:
+        d = datetime.fromisoformat(iso.replace("Z", "+00:00")).date()
+    except (ValueError, TypeError):
+        d = _parse_date(iso)
+    if not d:
+        return None
+    return max(0, (today - d).days)
+
+
+def _status_color(stage: int, days_since: int | None) -> str:
+    if stage >= 4:
+        return "green"
+    if stage == 3:
+        return "blue"
+    if stage in (1, 2):
+        if days_since is not None and days_since >= 7:
+            return "red"
+        if stage == 2:
+            return "yellow"
+        return "blue"
+    return "grey"
+
+
+def _followup_tier(stage: int, days_since: int | None) -> int:
+    """0 = none, 1 = 3-day gentle, 2 = 7-day different angle, 3 = 14-day last attempt."""
+    if stage >= 3 or days_since is None:
+        return 0
+    if days_since >= 14:
+        return 3
+    if days_since >= 7:
+        return 2
+    if days_since >= 3:
+        return 1
+    return 0
+
+
+def tracker_rows(graph, outreach_store: dict, pending_store: list,
+                 today: date | None = None) -> list[dict]:
+    """One row per target with any outreach activity (stage >= 1 OR pending msg).
+
+    Each row contains everything the tracker UI needs. Handle/account
+    enrichment is done by the app.py route before rendering.
+    """
+    today = today or date.today()
+    target_ids: set[str] = set()
+    for tid, raw in (outreach_store or {}).items():
+        if int((raw or {}).get("stage") or 0) >= 1 or (raw or {}).get("message_sent"):
+            target_ids.add(tid)
+    for msg in pending_store or []:
+        tid = msg.get("target_id")
+        if tid:
+            target_ids.add(tid)
+
+    rows = []
+    for tid in target_ids:
+        raw = (outreach_store or {}).get(tid) or {}
+        stage = stage_from_raw(raw)
+        latest_msg = _latest_message_for(tid, pending_store)
+        last_action_at = raw.get("last_action_at")
+        if not last_action_at and latest_msg:
+            last_action_at = (latest_msg.get("created_at") or "")[:10]
+        days_since = _days_since(last_action_at, today)
+        tier = _followup_tier(stage, days_since)
+        rows.append({
+            "target_id": tid,
+            "name": graph.id_to_name.get(tid, tid),
+            "stage": stage,
+            "stage_label": STAGE_LABELS.get(stage, ""),
+            "stage_icon": STAGE_ICONS.get(stage, ""),
+            "status_color": _status_color(stage, days_since),
+            "last_action_at": last_action_at or "",
+            "days_since": days_since if days_since is not None else -1,
+            "latest_message": (latest_msg or {}).get("message", ""),
+            "latest_platform": (latest_msg or {}).get("platform", ""),
+            "followup_tier": tier,
+            "stage_history": list(raw.get("stage_history") or []),
+            "message_count": len(_pending_for(tid, pending_store)),
+        })
+    return rows
+
+
+def tracker_stats(outreach_store: dict, pending_store: list,
+                  today: date | None = None) -> dict:
+    """Aggregate tracker-wide stats: counts, success rate, avg reply days, best platform, stage distribution."""
+    today = today or date.today()
+    base = outreach_stats(outreach_store)
+    stage_dist = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
+    reply_days: list[int] = []
+    for tid, raw in (outreach_store or {}).items():
+        if not (raw or {}).get("message_sent"):
+            continue
+        s = stage_from_raw(raw)
+        stage_dist[s] = stage_dist.get(s, 0) + 1
+        # Compute days from first message to reply for targets that replied.
+        if s >= 2:
+            history = raw.get("stage_history") or []
+            sent_at = next((h["at"] for h in history if h["stage"] == 1), None)
+            replied_at = next((h["at"] for h in history if h["stage"] == 2), None)
+            if sent_at and replied_at:
+                d_sent = _parse_date(sent_at)
+                d_rep = _parse_date(replied_at)
+                if d_sent and d_rep:
+                    reply_days.append(max(0, (d_rep - d_sent).days))
+                    continue
+            # Fallback: use latest pending message created_at → now.
+            latest = _latest_message_for(tid, pending_store)
+            if latest:
+                d_sent = _parse_date((latest.get("created_at") or "")[:10])
+                if d_sent:
+                    reply_days.append(max(0, (today - d_sent).days))
+
+    # Best platform = platform with most goal_achieved wins.
+    platform_wins: Counter = Counter()
+    for tid, raw in (outreach_store or {}).items():
+        if not (raw or {}).get("goal_achieved"):
+            continue
+        latest = _latest_message_for(tid, pending_store)
+        if latest and latest.get("platform"):
+            platform_wins[latest["platform"]] += 1
+    best_platform = platform_wins.most_common(1)[0][0] if platform_wins else "—"
+
+    avg_reply = round(sum(reply_days) / len(reply_days), 1) if reply_days else 0.0
+    return {
+        **base,
+        "avg_days_to_reply": avg_reply,
+        "best_platform": best_platform,
+        "stage_distribution": stage_dist,
+    }
+
+
+_FOLLOWUP_TEMPLATES = {
+    1: ("Gentle reminder",
+        "Hi {target}, just wanted to follow up on my previous message. I came across your profile through {mutual} and would love to connect!"),
+    2: ("Different angle",
+        "Hi {target}, I noticed we're both connected with {mutual}. I wanted to reach out because I admire your work — would love to compare notes when you have a moment."),
+    3: ("Last attempt",
+        "Hi {target}, I understand you're busy so I'll keep this brief — I wanted to connect because of our mutual {mutual}. Would love to chat if you ever have 15 minutes."),
+}
+
+
+def followup_template(tier: int, target_handle: str = "@target",
+                      mutual_handle: str = "@mutual") -> dict:
+    label, body = _FOLLOWUP_TEMPLATES.get(tier, ("Follow-up", "Hi {target}, following up here — hope you're well!"))
+    return {
+        "tier": tier,
+        "label": label,
+        "message": body.format(target=target_handle, mutual=mutual_handle),
+    }
+
+
+def reconnect_suggestions(graph, profile_id: str, outreach_store: dict,
+                          pending_store: list, today: date | None = None,
+                          limit: int = 5) -> list[dict]:
+    """People the user hasn't reached out to but probably should.
+
+    Excludes anyone already at stage >= 1 or with any pending message.
+    Ranks by (interaction_score + bridge_value/5) * days_since_last_interaction.
+    """
+    today = today or date.today()
+    excluded: set[str] = {
+        tid for tid, raw in (outreach_store or {}).items()
+        if int((raw or {}).get("stage") or 0) >= 1 or (raw or {}).get("message_sent")
+    }
+    for m in pending_store or []:
+        tid = m.get("target_id")
+        if tid:
+            excluded.add(tid)
+
+    direct = set(graph.adjacency.get(profile_id, ()))
+    candidates = []
+    for node_id in direct:
+        if node_id in excluded or node_id == profile_id:
+            continue
+        meta = graph.id_to_meta.get(node_id, {}) or {}
+        try:
+            score = int(meta.get("interaction_score") or 0)
+        except (ValueError, TypeError):
+            score = 0
+        last_raw = (meta.get("last_interaction") or "").strip()
+        last_date = _parse_date(last_raw)
+        days_since = (today - last_date).days if last_date else 365
+        if days_since < 30:
+            continue  # Spec: "last interaction was 30+ days ago"
+        # How many 2nd-degree contacts this person bridges to.
+        bridge_value = 0
+        for nb in graph.adjacency.get(node_id, ()):
+            if nb != profile_id and nb not in direct:
+                bridge_value += 1
+        rank = (score + bridge_value / 5.0) * days_since
+        candidates.append({
+            "id": node_id,
+            "name": graph.id_to_name.get(node_id, node_id),
+            "interaction_score": score,
+            "last_interaction": last_raw,
+            "days_since": days_since,
+            "connects_to_count": bridge_value,
+            "bridge_value": bridge_value,
+            "rank_score": round(rank, 1),
+            "reason": f"Connected to {bridge_value} people you might want to reach",
+        })
+
+    candidates.sort(key=lambda r: r["rank_score"], reverse=True)
+    return candidates[:limit]
 

@@ -104,20 +104,12 @@ PLATFORM_LABEL: dict[str, str] = {
 
 PLATFORMS = ("twitter", "farcaster", "linkedin", "wallet")
 
-# UI icons + labels for the per-platform interaction counts on person
-# cards. Keys match attribute keys stored on SocialAccount.attributes.
-# `platform` column maps these to the platform the icons live under
-# (used by the details panel for grouping).
-INTERACTION_ICONS: list[dict] = [
-    {"key": "twitter_likes",           "platform": "twitter",   "icon": "👍", "label": "Likes"},
-    {"key": "twitter_comments",        "platform": "twitter",   "icon": "💬", "label": "Comments"},
-    {"key": "twitter_reposts",         "platform": "twitter",   "icon": "🔁", "label": "Reposts"},
-    {"key": "farcaster_recasts",       "platform": "farcaster", "icon": "🔄", "label": "Recasts"},
-    {"key": "farcaster_replies",       "platform": "farcaster", "icon": "💬", "label": "Replies"},
-    {"key": "linkedin_recommendations","platform": "linkedin",  "icon": "⭐", "label": "Recommendations"},
-    {"key": "linkedin_endorsements",   "platform": "linkedin",  "icon": "🏆", "label": "Endorsements"},
-    {"key": "debank_transactions",     "platform": "wallet",    "icon": "💸", "label": "On-chain txs"},
-]
+# Interaction icons for real, API-verified interaction data only.
+# Fake columns (twitter_likes, twitter_comments, twitter_reposts,
+# farcaster_recasts, farcaster_replies, linkedin_recommendations,
+# linkedin_endorsements, debank_transactions) have been removed.
+# Show nothing rather than synthetic numbers.
+INTERACTION_ICONS: list[dict] = []
 
 
 def strength_bucket(s: float | int) -> dict:
@@ -827,6 +819,10 @@ def _network_stats() -> dict:
 
     Recomputed on every render so edits to the dataset (profile save
     → regenerate network) are reflected without a process restart.
+
+    `per_platform_counts` is scoped to the user's active platforms
+    (platforms they filled in on their profile) — matches the BUG2
+    scoping pattern used elsewhere in the app.
     """
     edge_strengths = list(graph.edge_strength.values())
     total_edges = len(edge_strengths)
@@ -834,6 +830,23 @@ def _network_stats() -> dict:
     moderate = sum(1 for s in edge_strengths if 5 <= s < 10)
     avg_strength = (sum(edge_strengths) / total_edges) if total_edges else 0.0
     platforms_present: set[str] = {acc.platform for acc in graph.accounts}
+
+    active = _active_platforms()
+    by_platform: dict[str, set[str]] = {p: set() for p in active}
+    for acc in graph.accounts:
+        if acc.platform in active and (acc.handle or "").strip():
+            by_platform[acc.platform].add(acc.owner_person_id)
+    # Emit in a stable order matching the profile UI.
+    order = ("twitter", "farcaster", "linkedin", "wallet")
+    per_platform_counts = [
+        {
+            "platform": p,
+            "label": PLATFORM_LABEL.get(p, p.title()),
+            "count": len(by_platform.get(p, set())),
+        }
+        for p in order if p in active
+    ]
+
     return {
         "people_count":   len(graph.id_to_name),
         "edges_count":    total_edges,
@@ -841,29 +854,94 @@ def _network_stats() -> dict:
         "moderate_count": moderate,
         "platforms_count": len(platforms_present),
         "avg_strength":   round(avg_strength, 1),
+        "per_platform_counts": per_platform_counts,
     }
 
 
-def _network_graph_data(path_ids: list[str] | None = None) -> dict:
+MAX_GRAPH_NODES = 150
+MAX_GRAPH_EDGES = 300
+VALID_GRAPH_MODES = ("path", "first", "second", "full")
+
+
+def _network_graph_data(path_ids: list[str] | None = None,
+                        mode: str = "first") -> dict:
     """Compact node+edge list for the vis-network visualization.
 
-    When `path_ids` is given (ordered list of node ids from the best
-    path) those nodes+edges get a `highlight: true` flag so the JS can
-    pop them visually.
+    `mode` selects which slice of the graph to render:
+      - "path"   — only nodes in the warm-intro path (fastest; falls back
+                   to "first" if no path is given).
+      - "first"  — me + direct 1st-degree neighbors (default for initial
+                   page loads with no result).
+      - "second" — me + 1st + 2nd-degree neighbors (BFS depth 2).
+      - "full"   — top-degree subsample across the whole network.
+    All modes cap at MAX_GRAPH_NODES nodes / MAX_GRAPH_EDGES edges.
+    Path nodes are always included regardless of mode (so the user still
+    sees the path after switching to "first").
     """
+    if mode not in VALID_GRAPH_MODES:
+        mode = "first"
+    if mode == "path" and not path_ids:
+        mode = "first"
+
     highlighted_nodes = set(path_ids or [])
     highlighted_edges: set[tuple[str, str]] = set()
     for i in range(len(path_ids or []) - 1):
         a, b = path_ids[i], path_ids[i + 1]
         highlighted_edges.add((a, b) if a <= b else (b, a))
 
-    # Node size driven by degree (number of adjacent nodes).
+    kept: set[str] = set()
+    if mode == "path":
+        kept = set(path_ids or [])
+    elif mode == "full":
+        deg_rank = sorted(
+            graph.id_to_name.keys(),
+            key=lambda n: len(graph.adjacency.get(n, ())),
+            reverse=True,
+        )
+        kept = set(deg_rank[:MAX_GRAPH_NODES])
+        if PROFILE_ID in graph.id_to_name:
+            kept.add(PROFILE_ID)
+        kept |= highlighted_nodes
+    else:
+        depth = 2 if mode == "second" else 1
+        if PROFILE_ID in graph.id_to_name:
+            kept.add(PROFILE_ID)
+            frontier: set[str] = {PROFILE_ID}
+            for _ in range(depth):
+                next_frontier: set[str] = set()
+                for n in frontier:
+                    for nb in graph.adjacency.get(n, ()):
+                        if nb not in kept:
+                            next_frontier.add(nb)
+                            kept.add(nb)
+                frontier = next_frontier
+                if len(kept) >= MAX_GRAPH_NODES:
+                    break
+        kept |= highlighted_nodes
+
+    # Enforce node cap: prioritize me + path + highest-degree rest.
+    if len(kept) > MAX_GRAPH_NODES:
+        priority: list[str] = []
+        if PROFILE_ID in kept:
+            priority.append(PROFILE_ID)
+        for p in path_ids or []:
+            if p in kept and p not in priority:
+                priority.append(p)
+        priority_set = set(priority)
+        remainder = sorted(
+            (n for n in kept if n not in priority_set),
+            key=lambda n: len(graph.adjacency.get(n, ())),
+            reverse=True,
+        )
+        kept = priority_set | set(remainder[:MAX_GRAPH_NODES - len(priority_set)])
+
     degree_count: dict[str, int] = {
-        pid: len(graph.adjacency.get(pid, set())) for pid in graph.id_to_name
+        pid: len(graph.adjacency.get(pid, set())) for pid in kept
     }
 
     nodes = []
-    for pid, name in graph.id_to_name.items():
+    for pid in kept:
+        name = graph.id_to_name.get(pid, pid)
         nodes.append({
             "id": pid,
             "label": name if len(name) <= 14 else name[:12] + "…",
@@ -871,18 +949,35 @@ def _network_graph_data(path_ids: list[str] | None = None) -> dict:
             "degree": degree_count.get(pid, 0),
             "is_me": pid == PROFILE_ID,
             "highlight": pid in highlighted_nodes,
+            "in_path": pid in highlighted_nodes,
         })
 
     edges = []
     for (a, b), s in graph.edge_strength.items():
+        if a not in kept or b not in kept:
+            continue
         bucket = strength_bucket(s)
+        is_hi = (a, b) in highlighted_edges or (b, a) in highlighted_edges
         edges.append({
             "from": a, "to": b,
             "strength": int(s),
             "band": bucket["band"],
-            "highlight": (a, b) in highlighted_edges or (b, a) in highlighted_edges,
+            "highlight": is_hi,
         })
-    return {"nodes": nodes, "edges": edges}
+
+    # Enforce edge cap: keep all highlighted edges + strongest remainder.
+    if len(edges) > MAX_GRAPH_EDGES:
+        edges.sort(key=lambda e: (0 if e["highlight"] else 1, -e["strength"]))
+        edges = edges[:MAX_GRAPH_EDGES]
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "mode": mode,
+        "has_path": bool(path_ids),
+        "total_nodes": len(graph.id_to_name),
+        "total_edges": len(graph.edge_strength),
+    }
 
 
 def _quick_stats_for_paths(paths: list[dict]) -> dict | None:
@@ -934,7 +1029,10 @@ def _render(
     highlight_ids = None
     if result and result.get("paths"):
         highlight_ids = [n["id"] for n in result["paths"][0]["nodes"]]
-    graph_data = _network_graph_data(highlight_ids)
+    # Initial mode: "path" when a result is present (Simple default per spec),
+    # otherwise "first" (me + 1st-degree only). User can switch via the toggle.
+    initial_mode = "path" if highlight_ids else "first"
+    graph_data = _network_graph_data(highlight_ids, mode=initial_mode)
 
     # ----- additive context for the remaining add-on features ----------
     outreach_store = load_outreach_status()
@@ -1044,6 +1142,119 @@ def index():
     return _render()
 
 
+DATASET_SOURCE_PATH = os.environ.get("WARM_INTRO_DATASET_SOURCE", ".dataset_source")
+
+
+def _is_real_dataset() -> bool:
+    """Returns True when a real (non-synthetic) graph is loaded.
+
+    Presence of `.dataset_source` acts as the sentinel. When present,
+    profile saves *augment* the graph instead of regenerating it.
+    """
+    return os.path.exists(DATASET_SOURCE_PATH)
+
+
+def _inject_user_into_real_graph(profile: dict, *, seed_ties: int = 8) -> None:
+    """Splice the profile's handle(s) into the currently-loaded real graph.
+
+    Idempotent: removes any prior `me` row/edges/identity, then appends a
+    fresh one. Attaches `me` to the top-N highest-degree nodes by
+    inserting mutual-tier edges at strength 7 so pathfinding has seed
+    ties to traverse.
+
+    Never touches rows for other ids — the real dataset is preserved.
+    """
+    import csv
+
+    # --- people.csv: drop old "me", append fresh -----------------------
+    people_rows: list[list[str]] = []
+    header: list[str] = ["id"]
+    if os.path.exists(PEOPLE):
+        with open(PEOPLE, "r", encoding="utf-8", newline="") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+            if rows:
+                header = rows[0]
+                people_rows = [r for r in rows[1:] if (r and r[0] != PROFILE_ID)]
+    people_rows.append([PROFILE_ID] + [""] * (len(header) - 1))
+    with open(PEOPLE, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(header)
+        w.writerows(people_rows)
+
+    # --- identities.csv: drop old "me" row, append fresh ---------------
+    id_rows: list[list[str]] = []
+    id_header: list[str] = []
+    if os.path.exists(IDENTITIES):
+        with open(IDENTITIES, "r", encoding="utf-8", newline="") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+            if rows:
+                id_header = rows[0]
+                id_rows = [r for r in rows[1:] if (r and r[0] != PROFILE_ID)]
+    # Build a "me" row matching the dataset's column shape.
+    col_index = {c: i for i, c in enumerate(id_header)} if id_header else {}
+    me_row = [""] * max(len(id_header), 1)
+    if id_header and id_header[0] == "person_id":
+        me_row[0] = PROFILE_ID
+        for src, col in (
+            ("twitter",   "twitter"),
+            ("farcaster", "farcaster"),
+            ("linkedin",  "linkedin"),
+            ("debank",    "debank"),
+        ):
+            val = (profile.get(src) or "").strip()
+            if val and col in col_index:
+                me_row[col_index[col]] = val if val.startswith("@") or col in ("linkedin", "debank") else f"@{val}"
+        if "interaction_score" in col_index:
+            me_row[col_index["interaction_score"]] = "0"
+    id_rows.append(me_row)
+    with open(IDENTITIES, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(id_header or ["person_id"])
+        w.writerows(id_rows)
+
+    # --- edges.csv: drop old "me" edges, append seed ties --------------
+    edge_header: list[str] = ["from", "to", "strength", "tier"]
+    edge_rows: list[list[str]] = []
+    degree: dict[str, int] = {}
+    if os.path.exists(EDGES):
+        with open(EDGES, "r", encoding="utf-8", newline="") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+            if rows:
+                edge_header = rows[0]
+                for r in rows[1:]:
+                    if not r or len(r) < 2:
+                        continue
+                    a, b = r[0], r[1]
+                    if a == PROFILE_ID or b == PROFILE_ID:
+                        continue
+                    edge_rows.append(r)
+                    degree[a] = degree.get(a, 0) + 1
+                    degree[b] = degree.get(b, 0) + 1
+    # Pick the top-K highest-degree real nodes as seed ties.
+    seeds = sorted(degree, key=lambda n: degree[n], reverse=True)[:seed_ties]
+    # Edge column order: from, to, strength, tier.
+    for s in seeds:
+        row = [""] * len(edge_header)
+        try:
+            row[edge_header.index("from")]     = PROFILE_ID
+            row[edge_header.index("to")]       = s
+            if "strength" in edge_header:
+                row[edge_header.index("strength")] = "7"
+            if "tier" in edge_header:
+                row[edge_header.index("tier")] = "mutual"
+        except ValueError:
+            # Fallback for unexpected header shape.
+            row = [PROFILE_ID, s, "7", "mutual"]
+        edge_rows.append(row)
+    with open(EDGES, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(edge_header)
+        w.writerows(edge_rows)
+
+
 @app.route("/profile", methods=["POST"])
 def update_profile():
     prof = {
@@ -1054,12 +1265,22 @@ def update_profile():
         "debank":    (request.form.get("debank")    or "").strip(),
     }
     save_profile(prof)
-    # Profile-change semantics: ALWAYS wipe the existing dataset first so
-    # no stale rows from a previous platform mix linger. Then either
-    # regenerate fresh (if handles exist) or stay empty.
-    _clear_dataset()
-    if _profile_has_handles(prof):
-        seed_for_profile(prof)
+    if _is_real_dataset():
+        # Real graph loaded — augment it, don't clobber. The user's handle
+        # is spliced in with seed ties to high-degree nodes so pathfinding
+        # has something to traverse.
+        if _profile_has_handles(prof):
+            _inject_user_into_real_graph(prof)
+        else:
+            # No handles → remove "me" from the real graph (same idempotent
+            # helper, minus the inject step). Cheapest path: re-inject with
+            # an empty profile so only the person row exists, no edges.
+            _inject_user_into_real_graph(prof, seed_ties=0)
+    else:
+        # Synthetic-data path — preserves original behavior exactly.
+        _clear_dataset()
+        if _profile_has_handles(prof):
+            seed_for_profile(prof)
     rebuild_graph()
     return redirect(url_for("index"))
 
@@ -1343,6 +1564,243 @@ def guide_view():
         "guide.html",
         profile=_profile_view(),
         dataset=_dataset_view(),
+    )
+
+
+@app.route("/graph/data", methods=["GET"])
+def graph_data_route():
+    """On-demand graph slice for the mode-toggle UI.
+
+    Query params:
+      - mode: one of VALID_GRAPH_MODES. Defaults to "first".
+      - target: optional target person id; when given, we recompute the
+        warm-intro path so the slice highlights it correctly.
+    """
+    mode = (request.args.get("mode") or "first").strip()
+    target_id = (request.args.get("target") or "").strip() or None
+    path_ids: list[str] | None = None
+    if target_id and target_id in graph.id_to_name and PROFILE_ID in graph.id_to_name:
+        raw = yen_k_shortest_paths(graph, PROFILE_ID, target_id, CANDIDATE_POOL)
+        candidates = [
+            {
+                "nodes": p,
+                "cost": c,
+                "hops": len(p) - 1,
+                "total_strength": sum(
+                    graph.strength(p[j], p[j + 1]) for j in range(len(p) - 1)
+                ),
+            }
+            for c, p in raw
+        ]
+        ranked = _rank_paths(candidates) if candidates else []
+        if ranked:
+            path_ids = ranked[0]["nodes"]
+    return jsonify(_network_graph_data(path_ids, mode=mode))
+
+
+@app.route("/tracker", methods=["GET"])
+def tracker_view():
+    """F10 — Outreach Tracker dashboard."""
+    outreach_store = load_outreach_status()
+    pending_store = load_pending_messages()
+    rows_raw = extras.tracker_rows(graph, outreach_store, pending_store)
+
+    degree_map = compute_degrees()
+    def _enrich_row(r: dict) -> dict:
+        accs = accounts_for(r["target_id"])
+        for a in accs:
+            a["platform_label"] = PLATFORM_LABEL.get(a["platform"], a["platform"])
+        return {
+            **r,
+            "accounts": accs,
+            "handle": _preferred_handle(r["target_id"]),
+            "degree": degree_map.get(r["target_id"]),
+        }
+    rows = [_enrich_row(r) for r in rows_raw]
+    rows.sort(key=lambda r: (r["days_since"] if r["days_since"] >= 0 else 10**6), reverse=False)
+
+    stats = extras.tracker_stats(outreach_store, pending_store)
+
+    recon_raw = extras.reconnect_suggestions(
+        graph, PROFILE_ID, outreach_store, pending_store,
+    )
+    def _enrich_recon(r: dict) -> dict:
+        accs = accounts_for(r["id"])
+        for a in accs:
+            a["platform_label"] = PLATFORM_LABEL.get(a["platform"], a["platform"])
+        return {**r, "accounts": accs, "handle": _preferred_handle(r["id"])}
+    reconnect = [_enrich_recon(r) for r in recon_raw]
+
+    return render_template(
+        "tracker.html",
+        profile=_profile_view(),
+        dataset=_dataset_view(),
+        rows=rows,
+        stats=stats,
+        reconnect=reconnect,
+        stage_labels=extras.STAGE_LABELS,
+        ai_key_present=extras.anthropic_key_present(),
+        has_profile=PROFILE_ID in graph.id_to_name,
+    )
+
+
+@app.route("/tracker/detail/<target_id>", methods=["GET"])
+def tracker_detail(target_id: str):
+    """Return JSON detail for the tracker modal: node, warm-intro path,
+    full message history, stage timeline, mutual connections."""
+    if target_id not in graph.id_to_name:
+        return jsonify({"ok": False, "error": "unknown target_id"}), 404
+
+    degree_map = compute_degrees()
+    node = node_view(target_id, degree_map=degree_map)
+
+    path_view: dict | None = None
+    mutuals: list[dict] = []
+    if PROFILE_ID in graph.id_to_name:
+        raw = yen_k_shortest_paths(graph, PROFILE_ID, target_id, CANDIDATE_POOL)
+        candidates = [
+            {
+                "nodes": path,
+                "cost": cost,
+                "hops": len(path) - 1,
+                "total_strength": sum(
+                    graph.strength(path[j], path[j + 1]) for j in range(len(path) - 1)
+                ),
+            }
+            for cost, path in raw
+        ]
+        ranked = _rank_paths(candidates) if candidates else []
+        if ranked:
+            best = ranked[0]
+            nodes = [
+                node_view(n, degree_map=degree_map) for n in best["nodes"]
+            ]
+            path_view = {
+                "hops": best["hops"],
+                "total_strength": best["total_strength"],
+                "nodes": nodes,
+            }
+            mutuals = nodes[1:-1] if len(nodes) >= 3 else []
+
+    messages = sorted(
+        _pending_for_target(target_id),
+        key=lambda m: m.get("created_at") or "",
+    )
+    outreach = load_outreach_status().get(target_id) or {}
+    timeline = list(outreach.get("stage_history") or [])
+    # Fallback: if no stage_history but message_sent, synthesize one entry.
+    if not timeline and messages:
+        timeline = [{
+            "stage": int(outreach.get("stage") or 1),
+            "at": (messages[0].get("created_at") or "")[:10],
+        }]
+
+    return jsonify({
+        "ok": True,
+        "node": node,
+        "path": path_view,
+        "messages": messages,
+        "timeline": timeline,
+        "mutuals": mutuals,
+        "status": outreach,
+    })
+
+
+@app.route("/tracker/follow-up", methods=["POST"])
+def tracker_followup():
+    """Generate a follow-up message (template; optional AI rewrite)."""
+    target_id = (request.form.get("target_id") or "").strip()
+    try:
+        tier = int(request.form.get("tier") or "1")
+    except ValueError:
+        tier = 1
+    tier = max(1, min(3, tier))
+    use_ai = (request.form.get("use_ai") or "").strip().lower() in ("1", "true", "yes")
+
+    if not target_id or target_id not in graph.id_to_name:
+        return jsonify({"ok": False, "error": "unknown target_id"}), 400
+
+    target_handle = _preferred_handle(target_id)
+    mutual_handle = "@your mutual"
+    if PROFILE_ID in graph.id_to_name:
+        raw = yen_k_shortest_paths(graph, PROFILE_ID, target_id, CANDIDATE_POOL)
+        candidates = [
+            {
+                "nodes": path,
+                "cost": cost,
+                "hops": len(path) - 1,
+                "total_strength": sum(
+                    graph.strength(path[j], path[j + 1]) for j in range(len(path) - 1)
+                ),
+            }
+            for cost, path in raw
+        ]
+        ranked = _rank_paths(candidates) if candidates else []
+        if ranked and len(ranked[0]["nodes"]) >= 3:
+            mutual_handle = _preferred_handle(ranked[0]["nodes"][1])
+
+    tpl = extras.followup_template(tier, target_handle, mutual_handle)
+    message = tpl["message"]
+
+    if use_ai and extras.anthropic_key_present():
+        try:
+            system = ("You rewrite warm-intro follow-up messages to sound natural, "
+                      "concise, and human. Keep it under 60 words. No emojis unless already present.")
+            user = (f"Rewrite this follow-up (tier {tier} — {tpl['label']}):\n\n{message}\n\n"
+                    f"Target handle: {target_handle}. Mutual: {mutual_handle}. "
+                    "Return only the rewritten message.")
+            message = extras.anthropic_complete(system, user, max_tokens=220).strip()
+        except Exception:
+            pass
+
+    return jsonify({"ok": True, "message": message, "tier": tier, "label": tpl["label"]})
+
+
+@app.route("/tracker/reconnect-message", methods=["POST"])
+def tracker_reconnect_message():
+    """Generate a short warm-reconnect message for a dormant contact."""
+    target_id = (request.form.get("target_id") or "").strip()
+    if not target_id or target_id not in graph.id_to_name:
+        return jsonify({"ok": False, "error": "unknown target_id"}), 400
+    handle = _preferred_handle(target_id)
+    accs = accounts_for(target_id)
+    platform_label = PLATFORM_LABEL.get(accs[0]["platform"], "there") if accs else "there"
+    message = (
+        f"Hey {handle}, it's been a while! Saw you're still active on "
+        f"{platform_label} — would love to catch up when you have a sec."
+    )
+    return jsonify({"ok": True, "message": message})
+
+
+@app.route("/revive", methods=["GET"])
+def revive_view():
+    """F9 — Dormant Bridge Surfacer.
+
+    Ranks 1st-degree contacts by how much 2nd-degree reach they unlock
+    weighted by how long since you last talked. Encourages maintenance
+    of bridge ties rather than only searching when you have a target.
+    """
+    data = extras.dormant_bridges(graph, PROFILE_ID)
+    def _enrich(row: dict) -> dict:
+        accs = accounts_for(row["id"])
+        for a in accs:
+            a["platform_label"] = PLATFORM_LABEL.get(a["platform"], a["platform"])
+        return {**row, "accounts": accs, "handle": _preferred_handle(row["id"])}
+    bridges = [_enrich(r) for r in data["bridges"]]
+    never = [_enrich(r) for r in data["never_logged"]]
+    summary = {
+        "first_degree_count": data["first_degree_count"],
+        "total_unlocks": data["total_unlocks"],
+        "max_months": data["max_months"],
+        "has_profile": PROFILE_ID in graph.id_to_name,
+    }
+    return render_template(
+        "revive.html",
+        profile=_profile_view(),
+        dataset=_dataset_view(),
+        bridges=bridges,
+        never_logged=never,
+        summary=summary,
     )
 
 
